@@ -20,6 +20,10 @@ class TK_Engine {
 		if ( preg_match( '/^(\d+)PK(\d+)$/', $sku, $m ) ) {
 			return array( 'section' => 'PK', 'size' => (int) $m[2], 'ribs' => (int) $m[1] );
 		}
+				// حالت تسمه تایم: Time 127
+		if ( preg_match( '/^TIME(\d+)$/', $sku, $m ) ) {
+			return array( 'section' => 'TIME', 'size' => (int) $m[1], 'ribs' => null );
+		}
 		foreach ( self::sections() as $s ) {
 			if ( 0 === strpos( $sku, strtoupper( $s->slug ) ) ) {
 				$rest = substr( $sku, strlen( $s->slug ) );
