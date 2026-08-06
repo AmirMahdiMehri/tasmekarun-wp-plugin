@@ -208,6 +208,22 @@ function tk_page_folders() {
 			</form></div>';
 		}
 		echo '</div></div>';
+		echo <<<HTML
+<script>
+(function(){
+	var bs = document.getElementById('tk-brand-search');
+	if ( ! bs ) return;
+	bs.addEventListener('input', function(){
+		var q = bs.value.trim().toLowerCase();
+		document.querySelectorAll('.tk-folder').forEach(function(f){
+			var fa = f.querySelector('input[name^="name_fa"]'), en = f.querySelector('input[name^="name_en"]');
+			var t = ((fa ? fa.value : '') + ' ' + (en ? en.value : '')).toLowerCase();
+			f.style.display = ( ! q || t.indexOf(q) !== -1 ) ? '' : 'none';
+		});
+	});
+})();
+</script>
+HTML;
 		return;
 	}
 
@@ -298,11 +314,10 @@ function tk_page_folders() {
 							$first = array_slice( $chunks, 0, 12 );
 							$rest  = array_slice( $chunks, 12 );
 							foreach ( $first as $ch ) { echo '<code style="' . $csstyle . '">' . $fmt( $ch ) . '</code>'; }
-							if ( $rest ) {
-								echo '<button type="button" class="button button-small tk-more-btn" style="margin-left:6px">+' . count( $rest ) . ' بازه دیگر</button>';
-								echo '<span class="tk-more-list" style="display:none">';
-								foreach ( $rest as $ch ) { echo '<code style="' . $csstyle . '">' . $fmt( $ch ) . '</code>'; }
-								echo '</span>';
+							foreach ( TK_Engine::ranges( $bid, $sid ) as $or ) {
+								if ( 'out' === $or->mode ) {
+									echo '<code style="margin-left:6px;background:#fcf0f1;color:#b32d2e;padding:2px 8px;border-radius:4px">حذف: ' . $or->min . ( $or->max !== $or->min ? '–' . $or->max : '' ) . ( $or->step > 1 ? '/' . $or->step : '' ) . '</code>';
+								}
 							}
 						}
 						?>
@@ -537,9 +552,11 @@ function tk_page_test() {
 /* لوگوی افزونه در لیست افزونه‌ها */
 add_action( 'admin_head-plugins.php', 'tk_plugin_icon' );
 function tk_plugin_icon() {
-	$use = '';
-	if ( file_exists( TK_PATH . 'assets/icon-128x128.png' ) ) { $use = TK_URL . 'assets/icon-128x128.png'; }
-	elseif ( file_exists( TK_PATH . 'assets/icon.svg' ) ) { $use = TK_URL . 'assets/icon.svg'; }
-	if ( ! $use ) { return; }
-	echo '<style>tr[data-plugin="tasmekarunplugin/tasmekarunplugin.php"] .plugin-icon{background-image:url(' . esc_url( $use ) . ');background-size:100% 100%;background-color:transparent}</style>';
+	$url = '';
+	if ( file_exists( TK_PATH . 'assets/icon-128x128.png' ) ) { $url = TK_URL . 'assets/icon-128x128.png'; }
+	elseif ( file_exists( TK_PATH . 'assets/icon-256x256.png' ) ) { $url = TK_URL . 'assets/icon-256x256.png'; }
+	elseif ( file_exists( TK_PATH . 'assets/icon.svg' ) ) { $url = TK_URL . 'assets/icon.svg'; }
+	if ( ! $url ) { return; }
+	$j = wp_json_encode( $url );
+	echo '<script>document.addEventListener("DOMContentLoaded",function(){var r=document.querySelector(\'tr[data-plugin="tasmekarunplugin/tasmekarunplugin.php"]\');if(!r)return;var i=r.querySelector(".plugin-icon");if(!i)return;if(i.tagName==="IMG"){i.src=' . $j . ';}else{i.style.backgroundImage="url("+' . $j . '+")";i.style.backgroundSize="100% 100%";}});</script>';
 }
