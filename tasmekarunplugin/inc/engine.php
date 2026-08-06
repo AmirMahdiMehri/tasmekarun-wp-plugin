@@ -41,28 +41,34 @@ class TK_Engine {
 			"SELECT * FROM {$wpdb->prefix}tk_brand_series WHERE brand_id=%d AND section_id=%d", $brand_id, $section_id ) );
 	}
 
-	public static function coefficient( $brand_id, $section_id ) {
+	public static function coefficient_source( $brand_id, $section_id ) {
 		global $wpdb;
 		$bs = self::brand_series( $brand_id, $section_id );
-		if ( $bs && $bs->coef_on && null !== $bs->coef_value ) { return (float) $bs->coef_value; }
-
+		if ( $bs && $bs->coef_on && null !== $bs->coef_value ) { return array( (float) $bs->coef_value, 'ضریب دستی سری' ); }
 		$pid = (int) $wpdb->get_var( $wpdb->prepare( "SELECT default_preset_id FROM {$wpdb->prefix}tk_brands WHERE id=%d", $brand_id ) );
 		if ( $pid ) {
-			$v = $wpdb->get_var( $wpdb->prepare(
-				"SELECT coef FROM {$wpdb->prefix}tk_preset_coefs WHERE preset_id=%d AND section_id=%d", $pid, $section_id ) );
-			if ( null !== $v ) { return (float) $v; }
+			$v = $wpdb->get_var( $wpdb->prepare( "SELECT coef FROM {$wpdb->prefix}tk_preset_coefs WHERE preset_id=%d AND section_id=%d", $pid, $section_id ) );
+			if ( null !== $v ) { return array( (float) $v, 'پریست پیشفرض برند' ); }
 		}
-		$v = $wpdb->get_var( $wpdb->prepare(
-			"SELECT coef FROM {$wpdb->prefix}tk_coefficients WHERE brand_id=%d AND section_id=%d", $brand_id, $section_id ) );
-		return null === $v ? null : (float) $v;
+		$v = $wpdb->get_var( $wpdb->prepare( "SELECT coef FROM {$wpdb->prefix}tk_coefficients WHERE brand_id=%d AND section_id=%d", $brand_id, $section_id ) );
+		if ( null !== $v ) { return array( (float) $v, 'جدول قدیمی' ); }
+		return array( null, 'بدون ضریب' );
 	}
 
+	public static function coefficient( $brand_id, $section_id ) {
+		$r = self::coefficient_source( $brand_id, $section_id );
+		return $r[0];
+	}
+
+	/** فرمول: دستی سری ← فرمول خود بخش ← فرمول کل دسته */
 	public static function formula_key_for( $brand_id, $section ) {
+		global $wpdb;
 		$bs = self::brand_series( $brand_id, (int) $section->id );
 		if ( $bs && $bs->formula_on && $bs->formula_key ) { return $bs->formula_key; }
-		return $section->formula_key;
+		if ( ! empty( $section->formula_key ) ) { return $section->formula_key; }
+		$ck = $wpdb->get_var( $wpdb->prepare( "SELECT formula_key FROM {$wpdb->prefix}tk_categories WHERE id=%d", (int) $section->category_id ) );
+		return $ck ? $ck : '';
 	}
-
 	public static function formula_expr( $fkey ) {
 		global $wpdb;
 		if ( '' === (string) $fkey ) { return ''; }

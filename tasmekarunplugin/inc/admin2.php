@@ -97,17 +97,32 @@ function tk_page_stock() {
 	<?php
 }
 
-/* ================= برندها ================= */
+/* ================= برندها (افزودن / تغییر نام / حذف) ================= */
 function tk_page_brands() {
 	global $wpdb; $p = $wpdb->prefix;
 	if ( $_SERVER['REQUEST_METHOD'] === 'POST' && tk_ok() ) {
 		if ( isset( $_POST['tk_add_brand'] ) ) {
-			$fa = sanitize_text_field( $_POST['name_fa'] ); $en = sanitize_text_field( $_POST['name_en'] );
+			$fa = sanitize_text_field( $_POST['name_fa_new'] ); $en = sanitize_text_field( $_POST['name_en_new'] );
 			$slug = sanitize_title( $en ) ? sanitize_title( $en ) : sanitize_title( $fa );
 			if ( ! $slug ) { $slug = 'brand-' . time(); }
 			$wpdb->query( $wpdb->prepare( "INSERT IGNORE INTO {$p}tk_brands (slug,name_fa,name_en,sort,active) VALUES (%s,%s,%s,999,1)", $slug, $fa, $en ) );
+		} elseif ( isset( $_POST['tk_update_brand'] ) ) {
+			$id = (int) $_POST['tk_update_brand'];
+			if ( isset( $_POST['name_fa'][ $id ], $_POST['name_en'][ $id ] ) ) {
+				$wpdb->update( "{$p}tk_brands", array(
+					'name_fa' => sanitize_text_field( $_POST['name_fa'][ $id ] ),
+					'name_en' => sanitize_text_field( $_POST['name_en'][ $id ] ),
+				), array( 'id' => $id ) );
+			}
+		} elseif ( isset( $_POST['tk_del_brand'] ) ) {
+			$id = (int) $_POST['tk_del_brand'];
+			$wpdb->query( $wpdb->prepare( "DELETE FROM {$p}tk_brand_series WHERE brand_id=%d", $id ) );
+			$wpdb->query( $wpdb->prepare( "DELETE FROM {$p}tk_stock WHERE brand_id=%d", $id ) );
+			$wpdb->query( $wpdb->prepare( "DELETE FROM {$p}tk_coefficients WHERE brand_id=%d", $id ) );
+			$wpdb->query( $wpdb->prepare( "DELETE FROM {$p}tk_brands WHERE id=%d", $id ) );
 		} elseif ( isset( $_POST['tk_toggle_brand'] ) ) {
-			$wpdb->query( $wpdb->prepare( "UPDATE {$p}tk_brands SET active = 1-active WHERE id=%d", (int) $_POST['brand_id'] ) );
+			$id = (int) $_POST['tk_toggle_brand'];
+			$wpdb->query( $wpdb->prepare( "UPDATE {$p}tk_brands SET active = 1-active WHERE id=%d", $id ) );
 		}
 		wp_redirect( $_SERVER['REQUEST_URI'] ); exit;
 	}
@@ -115,21 +130,32 @@ function tk_page_brands() {
 	?>
 	<div class="wrap" dir="rtl">
 	<h1>برندها (<?php echo count( $brands ); ?>)</h1>
-	<table class="widefat striped" style="max-width:800px"><tr><th>نام فارسی</th><th>نام انگلیسی</th><th>وضعیت</th><th></th></tr>
+	<form method="post">
+	<?php wp_nonce_field( 'tk_act', 'tk_nonce' ); ?>
+	<table class="widefat striped" style="max-width:950px">
+	<tr><th>نام فارسی</th><th>نام انگلیسی</th><th>وضعیت</th><th>عملیات</th></tr>
 	<?php foreach ( $brands as $b ) : ?>
-	<tr><td><?php echo esc_html( $b->name_fa ); ?></td><td><?php echo esc_html( $b->name_en ); ?></td>
-	<td><?php echo $b->active ? 'فعال' : 'غیرفعال'; ?></td>
-	<td><form method="post" style="margin:0"><?php wp_nonce_field( 'tk_act', 'tk_nonce' ); ?><input type="hidden" name="brand_id" value="<?php echo $b->id; ?>"><button name="tk_toggle_brand" value="1" class="button button-small"><?php echo $b->active ? 'غیرفعال' : 'فعال'; ?></button></form></td></tr>
-	<?php endforeach; ?></table>
+	<tr>
+		<td><input type="text" name="name_fa[<?php echo $b->id; ?>]" value="<?php echo esc_attr( $b->name_fa ); ?>"></td>
+		<td><input type="text" name="name_en[<?php echo $b->id; ?>]" value="<?php echo esc_attr( $b->name_en ); ?>" dir="ltr"></td>
+		<td><?php echo $b->active ? 'فعال' : 'غیرفعال'; ?></td>
+		<td style="white-space:nowrap">
+			<button name="tk_update_brand" value="<?php echo $b->id; ?>" class="button button-small">ذخیره نام</button>
+			<button name="tk_toggle_brand" value="<?php echo $b->id; ?>" class="button button-small"><?php echo $b->active ? 'غیرفعال' : 'فعال'; ?></button>
+			<button name="tk_del_brand" value="<?php echo $b->id; ?>" class="button button-small" onclick="return confirm('برند و همه تنظیمات/موجودی آن حذف شود؟');">حذف</button>
+		</td>
+	</tr>
+	<?php endforeach; ?>
+	</table>
 	<h2>افزودن برند</h2>
-	<form method="post"><?php wp_nonce_field( 'tk_act', 'tk_nonce' ); ?>
-		<input type="text" name="name_fa" placeholder="نام فارسی" required> <input type="text" name="name_en" placeholder="نام انگلیسی" required>
-		<button name="tk_add_brand" value="1" class="button button-primary">افزودن</button>
+	<input type="text" name="name_fa_new" placeholder="نام فارسی" required>
+	<input type="text" name="name_en_new" placeholder="نام انگلیسی" required>
+	<button name="tk_add_brand" value="1" class="button button-primary">افزودن</button>
 	</form></div>
 	<?php
 }
 
-/* ================= دسته‌ها و بخش‌ها (+ فرمول پیشفرض هر بخش) ================= */
+/* ================= دسته‌ها و بخش‌ها (کشویی + فرمول کل دسته) ================= */
 function tk_page_sections() {
 	global $wpdb; $p = $wpdb->prefix;
 	if ( $_SERVER['REQUEST_METHOD'] === 'POST' && tk_ok() ) {
@@ -138,39 +164,51 @@ function tk_page_sections() {
 				"INSERT IGNORE INTO {$p}tk_sections (category_id,slug,name_fa,formula_key,size_min,size_max,length_std,sort,active) VALUES (%d,%s,%s,%s,%d,%d,%s,999,1)",
 				(int) $_POST['category_id'], sanitize_text_field( $_POST['slug'] ), sanitize_text_field( $_POST['name_fa'] ),
 				sanitize_text_field( $_POST['formula_key'] ), (int) $_POST['size_min'], (int) $_POST['size_max'], sanitize_text_field( $_POST['length_std'] ) ) );
-		} elseif ( isset( $_POST['tk_save_sec_formulas'] ) ) {
+		} elseif ( isset( $_POST['tk_save_formulas'] ) ) {
+			foreach ( (array) $_POST['cat_formula'] as $cid => $fk ) {
+				$wpdb->update( "{$p}tk_categories", array( 'formula_key' => sanitize_text_field( $fk ) ), array( 'id' => (int) $cid ) );
+			}
 			foreach ( (array) $_POST['sec_formula'] as $sid => $fk ) {
 				$wpdb->update( "{$p}tk_sections", array( 'formula_key' => sanitize_text_field( $fk ) ), array( 'id' => (int) $sid ) );
 			}
 		}
 		wp_redirect( $_SERVER['REQUEST_URI'] ); exit;
 	}
+	tk_assets();
 	$cats = $wpdb->get_results( "SELECT * FROM {$p}tk_categories ORDER BY sort" );
-	$secs = $wpdb->get_results( "SELECT s.*, c.name_fa AS cname FROM {$p}tk_sections s JOIN {$p}tk_categories c ON c.id=s.category_id ORDER BY c.sort, s.slug" );
+	$secs = $wpdb->get_results( "SELECT * FROM {$p}tk_sections ORDER BY slug" );
 	$formulas = $wpdb->get_results( "SELECT * FROM {$p}tk_formulas ORDER BY title_fa" );
 	?>
 	<div class="wrap" dir="rtl">
-	<h1>دسته‌ها و بخش‌ها</h1>
+	<h1>دسته‌ها و بخش‌ها — فرمول‌های پیشفرض</h1>
 	<form method="post">
 	<?php wp_nonce_field( 'tk_act', 'tk_nonce' ); ?>
-	<table class="widefat striped" style="max-width:1000px"><tr><th>دسته</th><th>بخش</th><th>فرمول پیشفرض</th><th>بازه سایز</th><th>استاندارد</th></tr>
-	<?php foreach ( $secs as $s ) : ?>
-	<tr><td><?php echo esc_html( $s->cname ); ?></td><td><strong><?php echo esc_html( $s->slug ); ?></strong> — <?php echo esc_html( $s->name_fa ); ?></td>
-	<td><select name="sec_formula[<?php echo $s->id; ?>]">
-		<option value="">— بدون فرمول —</option>
-		<?php foreach ( $formulas as $f ) : ?><option value="<?php echo esc_attr( $f->fkey ); ?>" <?php selected( $s->formula_key, $f->fkey ); ?>><?php echo esc_html( $f->title_fa . ' (' . $f->fkey . ')' ); ?></option><?php endforeach; ?>
-	</select></td>
-	<td><?php echo (int) $s->size_min; ?> تا <?php echo (int) $s->size_max; ?></td><td><?php echo esc_html( $s->length_std ); ?></td></tr>
-	<?php endforeach; ?>
-	</table>
-	<p><button name="tk_save_sec_formulas" value="1" class="button button-primary">ذخیره فرمول‌های پیشفرض</button></p>
+	<?php foreach ( $cats as $c ) :
+		$rows = array();
+		foreach ( $secs as $s ) { if ( (int) $s->category_id === (int) $c->id ) { $rows[] = $s; } }
+		if ( ! $rows ) { continue; }
+		$over = 0;
+		foreach ( $rows as $s ) { if ( '' !== $s->formula_key ) { $over++; } }
+		echo '<div class="tk-acc' . ( $over ? ' open' : '' ) . '"><div class="tk-acc-head"><span class="arr">‹</span><strong>' . esc_html( $c->name_en ) . '</strong><small style="color:#888">' . esc_html( $c->name_fa ) . '</small></div><div class="tk-acc-body">';
+		echo '<div class="tk-row"><strong>فرمول کل دسته:</strong> <select name="cat_formula[' . $c->id . ']"><option value="">— بدون فرمول —</option>';
+		foreach ( $formulas as $f ) { echo '<option value="' . esc_attr( $f->fkey ) . '" ' . selected( $c->formula_key, $f->fkey, false ) . '>' . esc_html( $f->title_fa . ' (' . $f->fkey . ')' ) . '</option>'; }
+		echo '</select></div>';
+		echo '<table class="widefat striped"><tr><th>بخش</th><th>فرمول (خالی = پیروی از دسته)</th></tr>';
+		foreach ( $rows as $s ) {
+			echo '<tr><td><strong>' . esc_html( $s->slug ) . '</strong> — ' . esc_html( $s->name_fa ) . '</td><td><select name="sec_formula[' . $s->id . ']"><option value="">پیروی از دسته</option>';
+			foreach ( $formulas as $f ) { echo '<option value="' . esc_attr( $f->fkey ) . '" ' . selected( $s->formula_key, $f->fkey, false ) . '>' . esc_html( $f->title_fa . ' (' . $f->fkey . ')' ) . '</option>'; }
+			echo '</select></td></tr>';
+		}
+		echo '</table></div></div>';
+	endforeach; ?>
+	<p><button name="tk_save_formulas" value="1" class="button button-primary">ذخیره فرمول‌ها</button></p>
 	</form>
 	<h2>افزودن بخش جدید</h2>
 	<form method="post"><?php wp_nonce_field( 'tk_act', 'tk_nonce' ); ?>
-		<select name="category_id"><?php foreach ( $cats as $c ) : ?><option value="<?php echo $c->id; ?>"><?php echo esc_html( $c->name_fa ); ?></option><?php endforeach; ?></select>
+		<select name="category_id"><?php foreach ( $cats as $c ) : ?><option value="<?php echo $c->id; ?>"><?php echo esc_html( $c->name_en ); ?></option><?php endforeach; ?></select>
 		<input type="text" name="slug" placeholder="slug مثل ZX" required style="direction:ltr">
 		<input type="text" name="name_fa" placeholder="نام فارسی" required>
-		<select name="formula_key"><option value="">بدون فرمول</option><?php foreach ( $formulas as $f ) : ?><option value="<?php echo esc_attr( $f->fkey ); ?>"><?php echo esc_html( $f->fkey . ' — ' . $f->title_fa ); ?></option><?php endforeach; ?></select>
+		<select name="formula_key"><option value="">پیروی از دسته</option><?php foreach ( $formulas as $f ) : ?><option value="<?php echo esc_attr( $f->fkey ); ?>"><?php echo esc_html( $f->fkey . ' — ' . $f->title_fa ); ?></option><?php endforeach; ?></select>
 		<input type="number" name="size_min" value="16" style="width:90px"> تا <input type="number" name="size_max" value="3000" style="width:90px">
 		<input type="text" name="length_std" value="Li" placeholder="Li/Lw/La" style="width:70px;direction:ltr">
 		<button name="tk_add_section" value="1" class="button button-primary">افزودن بخش</button>
@@ -190,10 +228,9 @@ function tk_page_settings() {
 		echo '<div class="notice notice-success"><p>تنظیمات ذخیره شد ✔</p></div>';
 	}
 	$set = wp_parse_args( get_option( 'tk_settings', array() ), array(
-		'phone' => '021-00000000',
-		'currency' => 'ریال',
+		'phone' => '021-00000000', 'currency' => 'ریال',
 		'tpl_title' => 'تسمه {sku} برند {brand}',
-		'tpl_desc' => 'تسمه صنعتی {sku} برند {brand} — قیمت به‌روز و ضمانت اصالت. برای خرید عمده تماس بگیرید.',
+		'tpl_desc'  => 'تسمه صنعتی {sku} برند {brand} — قیمت به‌روز و ضمانت اصالت. برای خرید عمده تماس بگیرید.',
 	) );
 	?>
 	<div class="wrap" dir="rtl">

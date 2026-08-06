@@ -20,6 +20,7 @@ function tk_create_tables() {
 		slug VARCHAR(190) NOT NULL,
 		name_fa VARCHAR(190) NOT NULL,
 		name_en VARCHAR(190) NOT NULL DEFAULT '',
+				formula_key VARCHAR(60) NOT NULL DEFAULT '',
 		sort INT NOT NULL DEFAULT 0,
 		active TINYINT NOT NULL DEFAULT 1,
 		PRIMARY KEY  (id), UNIQUE KEY slug (slug)

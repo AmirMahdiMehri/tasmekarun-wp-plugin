@@ -9,6 +9,7 @@ function tk_admin_menu() {
 	add_submenu_page( 'tasmekarun', 'پوشه‌های برند', 'پوشه‌های برند', 'manage_options', 'tasmekarun', 'tk_page_folders' );
 	add_submenu_page( 'tasmekarun', 'پریست‌های ضریب', 'پریست‌های ضریب', 'manage_options', 'tk-presets', 'tk_page_presets' );
 	add_submenu_page( 'tasmekarun', 'فرمول‌ها', 'فرمول‌ها', 'manage_options', 'tk-formulas', 'tk_page_formulas' );
+	add_submenu_page( 'tasmekarun', 'تست قیمت', 'تست قیمت', 'manage_options', 'tk-test', 'tk_page_test' );
 	add_submenu_page( 'tasmekarun', 'موجودی و ایمپورت', 'موجودی و ایمپورت', 'manage_options', 'tk-stock', 'tk_page_stock' );
 	add_submenu_page( 'tasmekarun', 'برندها', 'برندها', 'manage_options', 'tk-brands', 'tk_page_brands' );
 	add_submenu_page( 'tasmekarun', 'دسته‌ها و بخش‌ها', 'دسته‌ها و بخش‌ها', 'manage_options', 'tk-sections', 'tk_page_sections' );
@@ -19,7 +20,7 @@ function tk_ok() {
 	return isset( $_POST['tk_nonce'] ) && wp_verify_nonce( $_POST['tk_nonce'], 'tk_act' ) && current_user_can( 'manage_options' );
 }
 
-function tk_style() { ?>
+function tk_assets() { ?>
 	<style>
 	.tk-folders{display:flex;flex-wrap:wrap;gap:14px;margin-top:14px}
 	.tk-folder{background:#fff;border:1px solid #dcdcde;border-radius:8px;padding:14px 18px;min-width:180px;text-align:center}
@@ -33,7 +34,19 @@ function tk_style() { ?>
 	.tk-sw span:before{content:"";position:absolute;width:16px;height:16px;border-radius:50%;background:#fff;top:3px;right:3px;transition:.2s}
 	.tk-sw input:checked+span{background:#2271b1}
 	.tk-sw input:checked+span:before{right:25px}
+	.tk-acc{border:1px solid #dcdcde;border-radius:6px;margin:10px 0;background:#fff}
+	.tk-acc-head{display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;font-weight:600}
+	.tk-acc-head .arr{display:inline-block;transition:.2s}
+	.tk-acc.open .arr{transform:rotate(90deg)}
+	.tk-acc-body{display:none;padding:8px 14px 14px;border-top:1px solid #eee}
+	.tk-acc.open .tk-acc-body{display:block}
 	</style>
+	<script>
+	document.addEventListener('click', function(e){
+		var h = e.target.closest('.tk-acc-head');
+		if ( h && ! e.target.closest('input,select,button,a,label') ) { h.closest('.tk-acc').classList.toggle('open'); }
+	});
+	</script>
 	<?php
 }
 
@@ -68,7 +81,7 @@ function tk_page_folders() {
 	}
 
 	$bid = isset( $_GET['brand'] ) ? (int) $_GET['brand'] : 0;
-	tk_style();
+	tk_assets();
 
 	if ( ! $bid ) {
 		$brands = $wpdb->get_results( "SELECT b.*, (SELECT COUNT(*) FROM {$p}tk_brand_series x WHERE x.brand_id=b.id) AS cnt FROM {$p}tk_brands b ORDER BY b.name_fa" );
@@ -112,8 +125,10 @@ function tk_page_folders() {
 		if ( ! $secs ) { continue; }
 		$on_cnt = 0;
 		foreach ( $secs as $s ) { if ( isset( $map[ (int) $s->id ] ) ) { $on_cnt++; } }
-		echo '<h2 style="margin-top:22px">' . esc_html( $c->name_fa ) . ' <label style="font-weight:normal;margin-right:14px"><input type="checkbox" class="js-cat-on" data-cat="' . $c->id . '" ' . ( $on_cnt === count( $secs ) ? 'checked' : '' ) . '> کل این دسته</label></h2>';
-		echo '<div id="tk-cat-' . $c->id . '">';
+		$open = $on_cnt > 0;
+		echo '<div class="tk-acc' . ( $open ? ' open' : '' ) . '">';
+		echo '<div class="tk-acc-head"><span class="arr">‹</span><strong>' . esc_html( $c->name_en ) . '</strong><small style="color:#888">' . esc_html( $c->name_fa ) . '</small><label style="margin-right:auto;font-weight:normal"><input type="checkbox" class="js-cat-on" data-cat="' . $c->id . '" ' . checked( $on_cnt === count( $secs ), true, false ) . '> کل این دسته</label></div>';
+		echo '<div class="tk-acc-body">';
 		foreach ( $secs as $s ) {
 			$sid = (int) $s->id;
 			$r = isset( $map[ $sid ] ) ? $map[ $sid ] : null;
@@ -138,13 +153,13 @@ function tk_page_folders() {
 								<?php foreach ( $formulas as $fo ) : ?><option value="<?php echo esc_attr( $fo->fkey ); ?>" <?php selected( $r ? $r->formula_key : '', $fo->fkey ); ?>><?php echo esc_html( $fo->title_fa . ' (' . $fo->fkey . ')' ); ?></option><?php endforeach; ?>
 							</select>
 						</span>
-						<small>(خاموش = فرمول پیشفرض بخش)</small>
+						<small>(خاموش = فرمول پیشفرض بخش/دسته)</small>
 					</div>
 					<div class="tk-row">
 						عکس مشترک سری:
 						<button type="button" class="button tk-up-btn" data-hid="tk-img-<?php echo $sid; ?>" data-img="tk-im-<?php echo $sid; ?>">انتخاب عکس</button>
 						<input type="hidden" id="tk-img-<?php echo $sid; ?>" name="series[<?php echo $sid; ?>][image_id]" value="<?php echo esc_attr( $r ? $r->image_id : 0 ); ?>">
-						<img id="tk-im-<?php echo $sid; ?>" src="<?php echo esc_url( $r && $r->image_id ? ( wp_get_attachment_image_url( (int) $r->image_id, 'thumbnail' ) ) : '' ); ?>" style="<?php echo ( $r && $r->image_id ) ? '' : 'display:none'; ?>max-height:40px;border-radius:4px">
+						<img id="tk-im-<?php echo $sid; ?>" src="<?php echo esc_url( $r && $r->image_id ? wp_get_attachment_image_url( (int) $r->image_id, 'thumbnail' ) : '' ); ?>" style="<?php echo ( $r && $r->image_id ) ? '' : 'display:none'; ?>max-height:40px;border-radius:4px">
 					</div>
 					<div class="tk-row">
 						<label class="tk-sw"><input type="checkbox" class="js-flip" data-target="tk-dt-<?php echo $sid; ?>" name="series[<?php echo $sid; ?>][desc_on]" value="1" <?php checked( $r && $r->desc_on ); ?>><span></span></label>
@@ -158,7 +173,7 @@ function tk_page_folders() {
 			</div>
 			<?php
 		}
-		echo '</div>';
+		echo '</div></div>';
 	}
 	?>
 		<p><button name="tk_save_folder" value="1" class="button button-primary">ذخیره پوشه</button></p>
@@ -167,7 +182,7 @@ function tk_page_folders() {
 	document.addEventListener('change', function(e){
 		var t = e.target;
 		if ( t.classList.contains('js-cat-on') ) {
-			var box = document.getElementById('tk-cat-' + t.dataset.cat);
+			var box = document.getElementById('tk-cat-' + t.dataset.cat) || t.closest('.tk-acc');
 			box.querySelectorAll('.js-series-on').forEach(function(s){ s.checked = t.checked; s.dispatchEvent(new Event('change')); });
 		} else if ( t.classList.contains('js-series-on') ) {
 			t.closest('.tk-series').querySelector('.tk-series-body').style.display = t.checked ? 'block' : 'none';
@@ -219,7 +234,7 @@ function tk_page_presets() {
 		wp_redirect( add_query_arg( array( 'page' => 'tk-presets' ), admin_url( 'admin.php' ) ) . ( isset( $_POST['edit'] ) ? '&edit=' . (int) $_POST['edit'] : '' ) ); exit;
 	}
 
-	tk_style();
+	tk_assets();
 	$edit = isset( $_GET['edit'] ) ? (int) $_GET['edit'] : 0;
 	echo '<div class="wrap" dir="rtl"><h1>پریست‌های ضریب پیشفرض</h1>';
 
@@ -229,13 +244,23 @@ function tk_page_presets() {
 			$coefs = $wpdb->get_results( $wpdb->prepare( "SELECT section_id, coef FROM {$p}tk_preset_coefs WHERE preset_id=%d", $edit ) );
 			$cmap = array();
 			foreach ( $coefs as $c ) { $cmap[ (int) $c->section_id ] = $c->coef; }
-			$secs = $wpdb->get_results( "SELECT s.*, c.name_fa AS cname FROM {$p}tk_sections s JOIN {$p}tk_categories c ON c.id=s.category_id ORDER BY c.sort, s.slug" );
+			$cats = $wpdb->get_results( "SELECT * FROM {$p}tk_categories ORDER BY sort" );
+			$secs = $wpdb->get_results( "SELECT * FROM {$p}tk_sections ORDER BY slug" );
 			echo '<h2>ضریب‌های پریست: ' . esc_html( $pr->title_fa ) . '</h2><form method="post">' . wp_nonce_field( 'tk_act', 'tk_nonce', true ) . '<input type="hidden" name="preset_id" value="' . $edit . '"><input type="hidden" name="edit" value="' . $edit . '">';
-			echo '<table class="widefat striped" style="max-width:700px"><tr><th>بخش</th><th>ضریب (خالی = حذف)</th></tr>';
-			foreach ( $secs as $s ) {
-				echo '<tr><td>' . esc_html( $s->cname . ' / ' . $s->slug ) . '</td><td><input type="number" step="any" name="pcoef[' . $s->id . ']" value="' . esc_attr( isset( $cmap[ (int) $s->id ] ) ? $cmap[ (int) $s->id ] : '' ) . '" style="width:150px"></td></tr>';
+			foreach ( $cats as $c ) {
+				$rows = array();
+				foreach ( $secs as $s ) { if ( (int) $s->category_id === (int) $c->id ) { $rows[] = $s; } }
+				if ( ! $rows ) { continue; }
+				$has = false;
+				foreach ( $rows as $s ) { if ( isset( $cmap[ (int) $s->id ] ) ) { $has = true; } }
+				echo '<div class="tk-acc' . ( $has ? ' open' : '' ) . '"><div class="tk-acc-head"><span class="arr">‹</span><strong>' . esc_html( $c->name_en ) . '</strong><small style="color:#888">' . esc_html( $c->name_fa ) . '</small></div><div class="tk-acc-body">';
+				echo '<table class="widefat striped"><tr><th>بخش</th><th>ضریب (خالی = حذف)</th></tr>';
+				foreach ( $rows as $s ) {
+					echo '<tr><td><strong>' . esc_html( $s->slug ) . '</strong></td><td><input type="number" step="any" name="pcoef[' . $s->id . ']" value="' . esc_attr( isset( $cmap[ (int) $s->id ] ) ? $cmap[ (int) $s->id ] : '' ) . '" style="width:150px"></td></tr>';
+				}
+				echo '</table></div></div>';
 			}
-			echo '</table><p><button name="tk_save_preset_coefs" value="1" class="button button-primary">ذخیره ضریب‌ها</button></p></form>';
+			echo '<p><button name="tk_save_preset_coefs" value="1" class="button button-primary">ذخیره ضریب‌ها</button></p></form>';
 		}
 	} else {
 		$presets = $wpdb->get_results( "SELECT pr.*, (SELECT COUNT(*) FROM {$p}tk_preset_coefs pc WHERE pc.preset_id=pr.id) AS cc, (SELECT COUNT(*) FROM {$p}tk_brands b WHERE b.default_preset_id=pr.id) AS bc FROM {$p}tk_presets pr ORDER BY pr.title_fa" );
@@ -270,6 +295,7 @@ function tk_page_formulas() {
 		} elseif ( isset( $_POST['tk_del_formula'] ) ) {
 			$fkey = sanitize_text_field( $_POST['fkey'] );
 			$used = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$p}tk_sections WHERE formula_key=%s", $fkey ) )
+			      + (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$p}tk_categories WHERE formula_key=%s", $fkey ) )
 			      + (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$p}tk_brand_series WHERE formula_key=%s", $fkey ) );
 			if ( $used ) {
 				$err = 'این فرمول در ' . $used . ' جا استفاده شده؛ اول استفاده‌ها را عوض کنید.';
@@ -279,7 +305,7 @@ function tk_page_formulas() {
 		}
 	}
 
-	tk_style();
+	tk_assets();
 	$formulas = $wpdb->get_results( "SELECT * FROM {$p}tk_formulas ORDER BY title_fa" );
 	echo '<div class="wrap" dir="rtl"><h1>فرمول‌های محاسبه قیمت</h1>';
 	if ( $err ) { echo '<div class="notice notice-error"><p>' . esc_html( $err ) . '</p></div>'; }
@@ -293,10 +319,47 @@ function tk_page_formulas() {
 	echo '<h2>افزودن / ویرایش فرمول</h2>
 	<form method="post">' . wp_nonce_field( 'tk_act', 'tk_nonce', true ) . '
 	<p>کد فرمول (انگلیسی): <input type="text" name="fkey" dir="ltr" required placeholder="STD"> &nbsp; نام: <input type="text" name="title_fa" required placeholder="طول در ضریب"></p>
-	<p>عبارت محاسبه: <input type="text" name="expr" dir="ltr" style="width:340px" required placeholder="LENGTH * COEF">
-	&nbsp; درج توکن: <button type="button" class="button button-small" onclick="tkIns(\'LENGTH *\')">LENGTH</button> <button type="button" class="button button-small" onclick="tkIns(\'RIBS *\')">RIBS</button> <button type="button" class="button button-small" onclick="tkIns(\'COEF\')">COEF</button></p>
+	<p>عبارت محاسبه: <input type="text" name="expr" dir="ltr" style="width:340px" required placeholder="LENGTH * COEF"></p>
 	<p class="description">LENGTH = طول تسمه · RIBS = تعداد شیار · COEF = ضریب. عملگرهای مجاز: + - * / و پرانتز. مثال شیاری: <code dir="ltr">RIBS * LENGTH * COEF</code></p>
 	<p><button name="tk_save_formula" value="1" class="button button-primary">ثبت فرمول</button></p></form>
-	<script>function tkIns(t){var i=document.querySelector(\'input[name=expr]\');i.value=(i.value+i.value&&!i.value.endsWith(\' \')&&!i.value.endsWith(\'*\')&&!i.value.endsWith(\'(\')?i.value:i.value)+t;i.focus();}</script>
 	</div>';
+}
+
+/* ================= تست قیمت زنده ================= */
+function tk_page_test() {
+	global $wpdb; $p = $wpdb->prefix;
+	tk_assets();
+	$brands = $wpdb->get_results( "SELECT * FROM {$p}tk_brands ORDER BY name_fa" );
+	$model = isset( $_GET['model'] ) ? sanitize_text_field( wp_unslash( $_GET['model'] ) ) : '';
+	$bslug = isset( $_GET['brand'] ) ? sanitize_text_field( wp_unslash( $_GET['brand'] ) ) : '';
+	echo '<div class="wrap" dir="rtl"><h1>تست قیمت زنده</h1>
+	<form method="get" style="display:flex;gap:8px;flex-wrap:wrap">
+	<input type="hidden" name="page" value="tk-test">
+	<input type="text" name="model" value="' . esc_attr( $model ) . '" placeholder="مدل: A50 یا 8PK1460" dir="ltr" required>
+	<select name="brand"><option value="">— برند —</option>';
+	foreach ( $brands as $b ) { echo '<option value="' . esc_attr( $b->slug ) . '" ' . selected( $bslug, $b->slug, false ) . '>' . esc_html( $b->name_fa ) . '</option>'; }
+	echo '</select><button class="button button-primary">محاسبه</button></form>';
+
+	if ( '' !== $model ) {
+		$b = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$p}tk_brands WHERE slug=%s", $bslug ) );
+		$parsed = TK_Engine::parse_sku( $model );
+		echo '<table class="widefat striped" style="max-width:700px;margin-top:14px">';
+		if ( ! $b ) { echo '<tr><td>برند انتخاب نشده/پیدا نشد</td></tr>'; }
+		elseif ( ! $parsed ) { echo '<tr><td>مدل پارس نشد (بخش ناشناخته)</td></tr>'; }
+		else {
+			$sec = TK_Engine::section_by_slug( $parsed['section'] );
+			list( $coef, $csrc ) = TK_Engine::coefficient_source( $b->id, (int) $sec->id );
+			$fkey = TK_Engine::formula_key_for( $b->id, $sec );
+			$expr = TK_Engine::formula_expr( $fkey );
+			$price = TK_Engine::price( $b->id, $parsed );
+			$stock = TK_Engine::in_stock( $b->id, (int) $sec->id, $parsed['size'] );
+			echo '<tr><th>پارس مدل</th><td>بخش: <strong>' . esc_html( $parsed['section'] ) . '</strong> | سایز: ' . (int) $parsed['size'] . ( $parsed['ribs'] ? ' | شیار: ' . (int) $parsed['ribs'] : '' ) . '</td></tr>';
+			echo '<tr><th>ضریب</th><td>' . ( null === $coef ? '—' : esc_html( number_format_i18n( $coef ) ) ) . ' <small>(' . esc_html( $csrc ) . ')</small></td></tr>';
+			echo '<tr><th>فرمول</th><td><code>' . esc_html( $fkey ) . '</code> → <code dir="ltr">' . esc_html( $expr ) . '</code></td></tr>';
+			echo '<tr><th>قیمت نهایی</th><td><strong>' . ( null === $price ? '— (ضریب یا فرمول ناقص)' : esc_html( TK_Engine::fmt( $price ) ) ) . '</strong></td></tr>';
+			echo '<tr><th>موجودی انبار</th><td>' . ( $stock ? '✅ موجود' : '⚠️ ناموجود (دکمه تماس)' ) . '</td></tr>';
+		}
+		echo '</table>';
+	}
+	echo '</div>';
 }
