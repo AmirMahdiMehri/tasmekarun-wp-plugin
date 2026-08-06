@@ -35,14 +35,12 @@ class TK_Engine {
 		return $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}tk_sections WHERE slug=%s", $slug ) );
 	}
 
-	/** تنظیمات سریِ برند (ردیف پوشه برند) */
 	public static function brand_series( $brand_id, $section_id ) {
 		global $wpdb;
 		return $wpdb->get_row( $wpdb->prepare(
 			"SELECT * FROM {$wpdb->prefix}tk_brand_series WHERE brand_id=%d AND section_id=%d", $brand_id, $section_id ) );
 	}
 
-	/** ضریب: دستیِ سری ← پریست پیشفرض برند ← جدول قدیمی */
 	public static function coefficient( $brand_id, $section_id ) {
 		global $wpdb;
 		$bs = self::brand_series( $brand_id, $section_id );
@@ -59,25 +57,82 @@ class TK_Engine {
 		return null === $v ? null : (float) $v;
 	}
 
-	/** فرمول: دستیِ سری ← فرمول پیشفرض بخش */
 	public static function formula_key_for( $brand_id, $section ) {
 		$bs = self::brand_series( $brand_id, (int) $section->id );
 		if ( $bs && $bs->formula_on && $bs->formula_key ) { return $bs->formula_key; }
 		return $section->formula_key;
 	}
 
+	public static function formula_expr( $fkey ) {
+		global $wpdb;
+		if ( '' === (string) $fkey ) { return ''; }
+		$e = $wpdb->get_var( $wpdb->prepare( "SELECT expr FROM {$wpdb->prefix}tk_formulas WHERE fkey=%s", $fkey ) );
+		return $e ? trim( $e ) : '';
+	}
+
+	/** قیمت = ارزیابی عبارت فرمول با متغیرهای LENGTH / RIBS / COEF — فقط سمت سرور */
 	public static function price( $brand_id, $parsed ) {
 		if ( ! $parsed ) { return null; }
 		$sec = self::section_by_slug( $parsed['section'] );
 		if ( ! $sec ) { return null; }
 		$coef = self::coefficient( $brand_id, (int) $sec->id );
 		if ( null === $coef ) { return null; }
+		$expr = self::formula_expr( self::formula_key_for( $brand_id, $sec ) );
+		if ( '' === $expr ) { return null; }
+		return self::eval_expr( $expr, array(
+			'LENGTH' => (float) $parsed['size'],
+			'RIBS'   => (float) ( $parsed['ribs'] ? $parsed['ribs'] : 1 ),
+			'COEF'   => (float) $coef,
+		) );
+	}
 
-		switch ( self::formula_key_for( $brand_id, $sec ) ) {
-			case 'LEN_COEF':      return $coef * $parsed['size'];
-			case 'RIBS_LEN_COEF': return $parsed['ribs'] ? $parsed['ribs'] * $parsed['size'] * $coef : null;
-			default:              return null;
+	/** ارزیاب امن عبارت: عدد، پرانتز، + - * / و توکن‌ها. بدون eval */
+	public static function eval_expr( $expr, $vars ) {
+		$vars = array_change_key_case( (array) $vars, CASE_UPPER );
+		$len = strlen( $expr ); $i = 0; $tokens = array();
+		while ( $i < $len ) {
+			$c = $expr[ $i ];
+			if ( ' ' === $c || "\t" === $c ) { $i++; continue; }
+			if ( preg_match( '/[0-9.]/', $c ) ) {
+				$j = $i; while ( $j < $len && preg_match( '/[0-9.]/', $expr[ $j ] ) ) { $j++; }
+				$tokens[] = array( 'n', (float) substr( $expr, $i, $j - $i ) ); $i = $j; continue;
+			}
+			if ( preg_match( '/[A-Za-z_]/', $c ) ) {
+				$j = $i; while ( $j < $len && preg_match( '/[A-Za-z_]/', $expr[ $j ] ) ) { $j++; }
+				$name = strtoupper( substr( $expr, $i, $j - $i ) );
+				if ( ! isset( $vars[ $name ] ) ) { return null; }
+				$tokens[] = array( 'n', (float) $vars[ $name ] ); $i = $j; continue;
+			}
+			if ( strpos( '+-*/()', $c ) !== false ) { $tokens[] = array( 'o', $c ); $i++; continue; }
+			return null;
 		}
+		$out = array(); $ops = array(); $prec = array( '+' => 1, '-' => 1, '*' => 2, '/' => 2 );
+		foreach ( $tokens as $t ) {
+			if ( 'n' === $t[0] ) { $out[] = $t; continue; }
+			$o = $t[1];
+			if ( '(' === $o ) { $ops[] = $o; continue; }
+			if ( ')' === $o ) {
+				while ( $ops && end( $ops ) !== '(' ) { $out[] = array( 'o', array_pop( $ops ) ); }
+				if ( ! $ops ) { return null; }
+				array_pop( $ops ); continue;
+			}
+			while ( $ops && end( $ops ) !== '(' && $prec[ end( $ops ) ] >= $prec[ $o ] ) { $out[] = array( 'o', array_pop( $ops ) ); }
+			$ops[] = $o;
+		}
+		while ( $ops ) { $o = array_pop( $ops ); if ( '(' === $o ) { return null; } $out[] = array( 'o', $o ); }
+		$st = array();
+		foreach ( $out as $t ) {
+			if ( 'n' === $t[0] ) { $st[] = $t[1]; continue; }
+			if ( count( $st ) < 2 ) { return null; }
+			$b = array_pop( $st ); $a = array_pop( $st );
+			switch ( $t[1] ) {
+				case '+': $st[] = $a + $b; break;
+				case '-': $st[] = $a - $b; break;
+				case '*': $st[] = $a * $b; break;
+				case '/': if ( 0 == $b ) { return null; } $st[] = $a / $b; break;
+			}
+		}
+		return 1 === count( $st ) ? $st[0] : null;
 	}
 
 	public static function stock_row( $brand_id, $section_id, $size ) {
@@ -91,13 +146,11 @@ class TK_Engine {
 		return $r && (int) $r->qty > 0;
 	}
 
-	/** مشخصات فنی داینامیک سری */
 	public static function specs( $section_id ) {
 		global $wpdb;
 		return $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}tk_specs WHERE section_id=%d", $section_id ) );
 	}
 
-	/** عکس مشترک سری برند */
 	public static function series_image_url( $brand_id, $section_id ) {
 		$bs = self::brand_series( $brand_id, $section_id );
 		if ( $bs && $bs->image_id ) {
@@ -107,9 +160,7 @@ class TK_Engine {
 		return '';
 	}
 
-	/** دسکریپشن: دستیِ سری ← اتوماتیک با مشخصات فنی داینامیک */
 	public static function description( $brand_name, $section, $bs = null ) {
-		if ( ! $bs ) { $bs = self::brand_series( 0, 0 ); }
 		if ( $bs && $bs->desc_on && ! empty( $bs->desc_text ) ) { return $bs->desc_text; }
 		$out = 'تسمه ' . $section->name_fa . ' برند ' . $brand_name . ' — قیمت به‌روز و ضمانت اصالت؛ مناسب فروش عمده.';
 		$spec = self::specs( (int) $section->id );
