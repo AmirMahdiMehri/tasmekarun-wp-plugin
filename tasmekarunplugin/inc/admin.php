@@ -268,9 +268,8 @@ HTML;
 		if ( ! $secs ) { continue; }
 		$on_cnt = 0;
 		foreach ( $secs as $s ) { if ( isset( $map[ (int) $s->id ] ) ) { $on_cnt++; } }
-		$open = $on_cnt > 0;
-		echo '<div class="tk-acc' . ( $open ? ' open' : '' ) . '">';
-		echo '<div class="tk-acc-head"><span class="arr">‹</span><strong>' . esc_html( $c->name_en ) . '</strong><small style="color:#888">' . esc_html( $c->name_fa ) . '</small><label style="margin-right:auto;font-weight:normal"><input type="checkbox" class="js-cat-on" data-cat="' . $c->id . '" ' . checked( $on_cnt === count( $secs ), true, false ) . '> کل این دسته</label></div>';
+		echo '<div class="tk-acc">';
+		echo '<div class="tk-acc-head"><span class="arr">‹</span><strong>' . esc_html( $c->name_en ) . '</strong><small style="color:#888">' . esc_html( $c->name_fa ) . '</small>' . ( $on_cnt ? '<small style="color:#2271b1;margin-right:8px">(' . $on_cnt . ' سری فعال)</small>' : '' ) . '<label style="margin-right:auto;font-weight:normal"><input type="checkbox" class="js-cat-on" data-cat="' . $c->id . '" ' . checked( $on_cnt === count( $secs ), true, false ) . '> کل این دسته</label></div>';
 		echo '<div class="tk-acc-body">';
 		foreach ( $secs as $s ) {
 			$sid = (int) $s->id;
