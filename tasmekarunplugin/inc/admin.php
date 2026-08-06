@@ -396,16 +396,7 @@ HTML;
 		});
 		m.open();
 	});
-	var ff = document.getElementById('tk-folder-form');
-	if ( ff ) {
-		ff.addEventListener('submit', function(){
-			document.querySelectorAll('.js-cat-on').forEach(function(c){
-				if ( ! c.checked ) {
-					c.closest('.tk-acc').querySelectorAll('.js-series-on').forEach(function(s){ s.checked = false; });
-				}
-			});
-		});
-	}
+
 	</script>
 	</div>
 	<?php
