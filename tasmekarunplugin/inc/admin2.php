@@ -124,7 +124,7 @@ function tk_page_brands() {
 			$id = (int) $_POST['tk_toggle_brand'];
 			$wpdb->query( $wpdb->prepare( "UPDATE {$p}tk_brands SET active = 1-active WHERE id=%d", $id ) );
 		}
-		wp_redirect( $_SERVER['REQUEST_URI'] ); exit;
+		tk_goto( $_SERVER['REQUEST_URI'] ); exit;
 	}
 	$brands = $wpdb->get_results( "SELECT * FROM {$p}tk_brands ORDER BY name_fa" );
 	?>
@@ -175,7 +175,7 @@ function tk_page_sections() {
 				$wpdb->update( "{$p}tk_sections", array( 'min_charge' => (int) $mv ), array( 'id' => (int) $sid ) );
 			}
 		}
-		wp_redirect( $_SERVER['REQUEST_URI'] ); exit;
+		tk_goto( $_SERVER['REQUEST_URI'] ); exit;
 	}
 	tk_assets();
 	$cats = $wpdb->get_results( "SELECT * FROM {$p}tk_categories ORDER BY sort" );

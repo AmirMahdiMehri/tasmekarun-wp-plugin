@@ -132,15 +132,30 @@ class TK_Engine {
 		return array_keys( $set );
 	}
 
-	/** فشرده‌سازی اعداد پشت‌سرهم به بازه برای نمایش (205,206,...,210 → 205–210) */
+		/** فشرده‌سازی هوشمند: دنباله‌ها → «تکی»، «آ–ب» یا «آ–ب/گام» */
 	public static function compress_set( $sizes ) {
-		$out = array(); $start = null; $prev = null;
-		foreach ( $sizes as $v ) {
-			if ( null === $start ) { $start = $prev = $v; continue; }
-			if ( $v === $prev + 1 ) { $prev = $v; continue; }
-			$out[] = array( $start, $prev ); $start = $prev = $v;
+		$out = array();
+		$n = count( $sizes );
+		$i = 0;
+		while ( $i < $n ) {
+			$j = $i; $d = null;
+			while ( $j + 1 < $n ) {
+				$nd = $sizes[ $j + 1 ] - $sizes[ $j ];
+				if ( null === $d ) { $d = $nd; $j++; continue; }
+				if ( $nd === $d ) { $j++; continue; }
+				break;
+			}
+			$len = $j - $i + 1;
+			if ( 1 === $len ) {
+				$out[] = array( $sizes[ $i ], $sizes[ $i ], 1 );
+			} elseif ( 2 === $len && $d > 1 ) {
+				$out[] = array( $sizes[ $i ], $sizes[ $i ], 1 );
+				$out[] = array( $sizes[ $j ], $sizes[ $j ], 1 );
+			} else {
+				$out[] = array( $sizes[ $i ], $sizes[ $j ], $d ? $d : 1 );
+			}
+			$i = $j + 1;
 		}
-		if ( null !== $start ) { $out[] = array( $start, $prev ); }
 		return $out;
 	}
 

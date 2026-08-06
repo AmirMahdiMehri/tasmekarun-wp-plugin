@@ -20,6 +20,11 @@ function tk_ok() {
 	return isset( $_POST['tk_nonce'] ) && wp_verify_nonce( $_POST['tk_nonce'], 'tk_act' ) && current_user_can( 'manage_options' );
 }
 
+function tk_goto( $url ) {
+	echo '<meta charset="utf-8"><script>location.replace(' . wp_json_encode( $url ) . ')</script>';
+	exit;
+}
+
 function tk_assets() { ?>
 	<style>
 	.tk-folders{display:flex;flex-wrap:wrap;gap:14px;margin-top:14px}
@@ -129,18 +134,18 @@ function tk_page_folders() {
 				$wpdb->query( $wpdb->prepare( "DELETE FROM {$p}tk_series_ranges WHERE brand_id=%d AND section_id=%d", $bid, $sid ) );
 				$msg = 'reset';
 			}
-			wp_redirect( add_query_arg( array( 'page' => 'tasmekarun', 'brand' => $bid, 'tkmsg' => $msg ), admin_url( 'admin.php' ) ) ); exit;
+			tk_goto( add_query_arg( array( 'page' => 'tasmekarun', 'brand' => $bid, 'tkmsg' => $msg ), admin_url( 'admin.php' ) ) ); exit;
 		}
 
 		if ( isset( $_POST['tk_save_folder'] ) ) {
-			wp_redirect( add_query_arg( array( 'page' => 'tasmekarun', 'brand' => (int) $_POST['brand_id'], 'tkmsg' => 'saved' ), admin_url( 'admin.php' ) ) ); exit;
+			tk_goto( add_query_arg( array( 'page' => 'tasmekarun', 'brand' => (int) $_POST['brand_id'], 'tkmsg' => 'saved' ), admin_url( 'admin.php' ) ) ); exit;
 		}
 		if ( isset( $_POST['tk_add_brand'] ) ) {
 			$fa = sanitize_text_field( $_POST['name_fa_new'] ); $en = sanitize_text_field( $_POST['name_en_new'] );
 			$slug = sanitize_title( $en ) ? sanitize_title( $en ) : sanitize_title( $fa );
 			if ( ! $slug ) { $slug = 'brand-' . time(); }
 			$wpdb->query( $wpdb->prepare( "INSERT IGNORE INTO {$p}tk_brands (slug,name_fa,name_en,sort,active) VALUES (%s,%s,%s,999,1)", $slug, $fa, $en ) );
-			wp_redirect( add_query_arg( array( 'page' => 'tasmekarun' ), admin_url( 'admin.php' ) ) ); exit;
+			tk_goto( add_query_arg( array( 'page' => 'tasmekarun' ), admin_url( 'admin.php' ) ) ); exit;
 		}
 		if ( isset( $_POST['tk_update_brand'] ) ) {
 			$id = (int) $_POST['tk_update_brand'];
@@ -150,7 +155,7 @@ function tk_page_folders() {
 					'name_en' => sanitize_text_field( $_POST['name_en'][ $id ] ),
 				), array( 'id' => $id ) );
 			}
-			wp_redirect( add_query_arg( array( 'page' => 'tasmekarun' ), admin_url( 'admin.php' ) ) ); exit;
+			tk_goto( add_query_arg( array( 'page' => 'tasmekarun' ), admin_url( 'admin.php' ) ) ); exit;
 		}
 		if ( isset( $_POST['tk_del_brand'] ) ) {
 			$id = (int) $_POST['tk_del_brand'];
@@ -158,7 +163,7 @@ function tk_page_folders() {
 			$wpdb->query( $wpdb->prepare( "DELETE FROM {$p}tk_stock WHERE brand_id=%d", $id ) );
 			$wpdb->query( $wpdb->prepare( "DELETE FROM {$p}tk_coefficients WHERE brand_id=%d", $id ) );
 			$wpdb->query( $wpdb->prepare( "DELETE FROM {$p}tk_brands WHERE id=%d", $id ) );
-			wp_redirect( add_query_arg( array( 'page' => 'tasmekarun' ), admin_url( 'admin.php' ) ) ); exit;
+			tk_goto( add_query_arg( array( 'page' => 'tasmekarun' ), admin_url( 'admin.php' ) ) ); exit;
 		}
 	}
 
@@ -179,7 +184,7 @@ function tk_page_folders() {
 	if ( ! $bid ) {
 		$q = isset( $_GET['q'] ) ? sanitize_text_field( wp_unslash( $_GET['q'] ) ) : '';
 		echo '<div class="wrap" dir="rtl"><h1>پوشه‌های برند</h1>';
-		echo '<form method="get" style="display:flex;gap:8px;margin:10px 0"><input type="hidden" name="page" value="tasmekarun"><input type="search" name="q" value="' . esc_attr( $q ) . '" placeholder="جستجوی برند…"> <button class="button">جستجو</button></form>';
+		echo '<input type="search" id="tk-brand-search" style="margin:10px 0;max-width:320px" placeholder="جستجوی زنده برند…">';
 		echo '<form method="post" style="display:flex;gap:8px;flex-wrap:wrap;margin:12px 0">' . wp_nonce_field( 'tk_act', 'tk_nonce', true ) . '
 		<input type="text" name="name_fa_new" placeholder="نام فارسی پوشه جدید" required>
 		<input type="text" name="name_en_new" placeholder="نام انگلیسی" dir="ltr" required>
@@ -285,11 +290,20 @@ function tk_page_folders() {
 							echo '<small>کل بازه بخش (' . (int) $s->size_min . ' تا ' . (int) $s->size_max . ')</small>';
 						} else {
 							$chunks = TK_Engine::compress_set( TK_Engine::size_set( $s, $bid ) );
-							$show = array_slice( $chunks, 0, 25 );
-							foreach ( $show as $ch ) {
-								echo '<code style="margin-left:6px;background:#f0f0f1;padding:2px 8px;border-radius:4px">' . $ch[0] . ( $ch[1] !== $ch[0] ? '–' . $ch[1] : '' ) . '</code>';
+							$fmt = function ( $ch ) {
+								if ( $ch[0] === $ch[1] ) { return (string) $ch[0]; }
+								return $ch[0] . '–' . $ch[1] . ( $ch[2] > 1 ? '/' . $ch[2] : '' );
+							};
+							$csstyle = 'margin-left:6px;background:#f0f0f1;padding:2px 8px;border-radius:4px';
+							$first = array_slice( $chunks, 0, 12 );
+							$rest  = array_slice( $chunks, 12 );
+							foreach ( $first as $ch ) { echo '<code style="' . $csstyle . '">' . $fmt( $ch ) . '</code>'; }
+							if ( $rest ) {
+								echo '<button type="button" class="button button-small tk-more-btn" style="margin-left:6px">+' . count( $rest ) . ' بازه دیگر</button>';
+								echo '<span class="tk-more-list" style="display:none">';
+								foreach ( $rest as $ch ) { echo '<code style="' . $csstyle . '">' . $fmt( $ch ) . '</code>'; }
+								echo '</span>';
 							}
-							if ( count( $chunks ) > 25 ) { echo '<small>+' . ( count( $chunks ) - 25 ) . ' بازه دیگر</small>'; }
 						}
 						?>
 					</div>
@@ -332,6 +346,12 @@ function tk_page_folders() {
 		}
 	});
 	document.addEventListener('click', function(e){
+		var mb = e.target.closest('.tk-more-btn');
+		if ( mb ) {
+			var l = mb.nextElementSibling;
+			if ( l ) { l.style.display = ( l.style.display === 'none' ? 'inline' : 'none' ); }
+			return;
+		}
 		var b = e.target.closest('.tk-up-btn');
 		if ( ! b ) return;
 		e.preventDefault();
@@ -343,6 +363,17 @@ function tk_page_folders() {
 		});
 		m.open();
 	});
+	var bs = document.getElementById('tk-brand-search');
+	if ( bs ) {
+		bs.addEventListener('input', function(){
+			var q = bs.value.trim().toLowerCase();
+			document.querySelectorAll('.tk-folder').forEach(function(f){
+				var fa = f.querySelector('input[name^="name_fa"]'), en = f.querySelector('input[name^="name_en"]');
+				var t = ((fa ? fa.value : '') + ' ' + (en ? en.value : '')).toLowerCase();
+				f.style.display = ( ! q || t.indexOf(q) !== -1 ) ? '' : 'none';
+			});
+		});
+	}
 	</script>
 	</div>
 	<?php
@@ -370,7 +401,7 @@ function tk_page_presets() {
 				}
 			}
 		}
-		wp_redirect( add_query_arg( array( 'page' => 'tk-presets' ), admin_url( 'admin.php' ) ) . ( isset( $_POST['edit'] ) ? '&edit=' . (int) $_POST['edit'] : '' ) ); exit;
+		tk_goto( add_query_arg( array( 'page' => 'tk-presets' ), admin_url( 'admin.php' ) ) . ( isset( $_POST['edit'] ) ? '&edit=' . (int) $_POST['edit'] : '' ) ); exit;
 	}
 
 	tk_assets();
