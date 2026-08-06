@@ -100,7 +100,7 @@ class TK_Engine {
 	public static function ranges( $brand_id, $section_id ) {
 		global $wpdb;
 		return $wpdb->get_results( $wpdb->prepare(
-			"SELECT * FROM {$wpdb->prefix}tk_series_ranges WHERE brand_id=%d AND section_id=%d ORDER BY mode, min", $brand_id, $section_id ) );
+			"SELECT * FROM {$wpdb->prefix}tk_series_ranges WHERE brand_id=%d AND section_id=%d ORDER BY id ASC", $brand_id, $section_id ) );
 	}
 
 		public static function section_by_id( $id ) {
@@ -108,30 +108,37 @@ class TK_Engine {
 		return $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}tk_sections WHERE id=%d", (int) $id ) );
 	}
 
-	/** مجموعه سایزهای واقعیِ قابل ساخت (با گام، بازه‌ها و کسرها) */
+	/** مجموعه سایزهای قابل ساخت — آخرین دستور اولویت دارد (پخش زمانی) */
 	public static function size_set( $section, $brand_id ) {
 		$rows = self::ranges( $brand_id, (int) $section->id );
-		$set = array();
-		$has_in = false;
-		foreach ( $rows as $r ) { if ( 'in' === $r->mode ) { $has_in = true; break; } }
-		if ( $has_in ) {
-			foreach ( $rows as $r ) {
-				if ( 'in' !== $r->mode ) { continue; }
-				$step = (int) $r->step > 0 ? (int) $r->step : 1;
-				for ( $v = (int) $r->min; $v <= (int) $r->max; $v += $step ) { $set[ $v ] = true; }
-			}
-		} else {
-			for ( $v = (int) $section->size_min; $v <= (int) $section->size_max; $v++ ) { $set[ $v ] = true; }
-		}
-		foreach ( $rows as $r ) {
-			if ( 'out' !== $r->mode ) { continue; }
+		$set = null; // null = هنوز هیچ دستوری ثبت نشده
+
+		$full = function () use ( $section ) {
+			$a = array();
+			for ( $v = (int) $section->size_min; $v <= (int) $section->size_max; $v++ ) { $a[ $v ] = true; }
+			return $a;
+		};
+		$vals = function ( $r ) {
+			$out = array();
 			$step = (int) $r->step > 0 ? (int) $r->step : 1;
-			for ( $v = (int) $r->min; $v <= (int) $r->max; $v += $step ) { unset( $set[ $v ] ); }
+			for ( $v = (int) $r->min; $v <= (int) $r->max; $v += $step ) { $out[ $v ] = true; }
+			return $out;
+		};
+
+		foreach ( $rows as $r ) { // به ترتیب id = ترتیب زمانی
+			if ( 'in' === $r->mode ) {
+				if ( null === $set ) { $set = array(); }
+				foreach ( $vals( $r ) as $v => $t ) { $set[ $v ] = true; }
+			} else {
+				if ( null === $set ) { $set = $full(); }
+				foreach ( $vals( $r ) as $v => $t ) { unset( $set[ $v ] ); }
+			}
 		}
+
+		if ( null === $set ) { $set = $full(); }
 		ksort( $set );
 		return array_keys( $set );
 	}
-
 		/** فشرده‌سازی هوشمند: دنباله‌ها → «تکی»، «آ–ب» یا «آ–ب/گام» */
 	public static function compress_set( $sizes ) {
 		$out = array();

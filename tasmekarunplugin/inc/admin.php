@@ -552,11 +552,17 @@ function tk_page_test() {
 /* لوگوی افزونه در لیست افزونه‌ها */
 add_action( 'admin_head-plugins.php', 'tk_plugin_icon' );
 function tk_plugin_icon() {
-	$url = '';
-	if ( file_exists( TK_PATH . 'assets/icon-128x128.png' ) ) { $url = TK_URL . 'assets/icon-128x128.png'; }
-	elseif ( file_exists( TK_PATH . 'assets/icon-256x256.png' ) ) { $url = TK_URL . 'assets/icon-256x256.png'; }
-	elseif ( file_exists( TK_PATH . 'assets/icon.svg' ) ) { $url = TK_URL . 'assets/icon.svg'; }
-	if ( ! $url ) { return; }
+	$pngs = glob( TK_PATH . 'assets/*.png' );
+	$svgs = glob( TK_PATH . 'assets/*.svg' );
+	$file = $pngs ? $pngs[0] : ( $svgs ? $svgs[0] : '' );
+	if ( ! $file ) { return; }
+	$url = TK_URL . 'assets/' . basename( $file );
 	$j = wp_json_encode( $url );
-	echo '<script>document.addEventListener("DOMContentLoaded",function(){var r=document.querySelector(\'tr[data-plugin="tasmekarunplugin/tasmekarunplugin.php"]\');if(!r)return;var i=r.querySelector(".plugin-icon");if(!i)return;if(i.tagName==="IMG"){i.src=' . $j . ';}else{i.style.backgroundImage="url("+' . $j . '+")";i.style.backgroundSize="100% 100%";}});</script>';
+	echo '<script>document.addEventListener("DOMContentLoaded",function(){
+		var r=document.querySelector(\'tr[data-plugin="tasmekarunplugin/tasmekarunplugin.php"]\');
+		if(!r){var c=document.querySelector(\'input[type="checkbox"][value="tasmekarunplugin/tasmekarunplugin.php"]\');if(c){r=c.closest("tr");}}
+		if(!r){return;}
+		var i=r.querySelector(".plugin-icon");if(!i){return;}
+		if(i.tagName==="IMG"){i.src='.$j.';}else{i.style.backgroundImage="url("+'.$j.'+")";i.style.backgroundSize="100% 100%";}
+	});</script>';
 }
