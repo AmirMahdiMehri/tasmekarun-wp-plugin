@@ -51,48 +51,91 @@ function tk_assets() { ?>
 }
 
 /* ================= پوشه‌های برند ================= */
+
 function tk_page_folders() {
 	global $wpdb; $p = $wpdb->prefix;
 
-	if ( $_SERVER['REQUEST_METHOD'] === 'POST' && tk_ok() && isset( $_POST['tk_save_folder'] ) ) {
-		$bid = (int) $_POST['brand_id'];
-		$wpdb->update( "{$p}tk_brands", array( 'default_preset_id' => (int) $_POST['preset_id'] ), array( 'id' => $bid ) );
-		$series = isset( $_POST['series'] ) ? (array) $_POST['series'] : array();
-		$ids = array_map( 'intval', array_keys( $series ) );
-		if ( $ids ) {
-			$wpdb->query( "DELETE FROM {$p}tk_brand_series WHERE brand_id=$bid AND section_id NOT IN (" . implode( ',', $ids ) . ')' );
-		} else {
-			$wpdb->query( $wpdb->prepare( "DELETE FROM {$p}tk_brand_series WHERE brand_id=%d", $bid ) );
+	if ( $_SERVER['REQUEST_METHOD'] === 'POST' && tk_ok() ) {
+		if ( isset( $_POST['tk_save_folder'] ) ) {
+			$bid = (int) $_POST['brand_id'];
+			$wpdb->update( "{$p}tk_brands", array( 'default_preset_id' => (int) $_POST['preset_id'] ), array( 'id' => $bid ) );
+			$series = isset( $_POST['series'] ) ? (array) $_POST['series'] : array();
+			$ids = array_map( 'intval', array_keys( $series ) );
+			if ( $ids ) {
+				$wpdb->query( "DELETE FROM {$p}tk_brand_series WHERE brand_id=$bid AND section_id NOT IN (" . implode( ',', $ids ) . ')' );
+			} else {
+				$wpdb->query( $wpdb->prepare( "DELETE FROM {$p}tk_brand_series WHERE brand_id=%d", $bid ) );
+			}
+			foreach ( $series as $sid => $f ) {
+				$wpdb->query( $wpdb->prepare(
+					"INSERT INTO {$p}tk_brand_series (brand_id,section_id,coef_on,coef_value,formula_on,formula_key,image_id,desc_on,desc_text) VALUES (%d,%d,%d,%s,%d,%s,%d,%d,%s)
+					 ON DUPLICATE KEY UPDATE coef_on=VALUES(coef_on), coef_value=VALUES(coef_value), formula_on=VALUES(formula_on), formula_key=VALUES(formula_key), image_id=VALUES(image_id), desc_on=VALUES(desc_on), desc_text=VALUES(desc_text)",
+					$bid, (int) $sid,
+					! empty( $f['coef_on'] ) ? 1 : 0,
+					( isset( $f['coef_value'] ) && '' !== $f['coef_value'] ) ? floatval( $f['coef_value'] ) : null,
+					! empty( $f['formula_on'] ) ? 1 : 0,
+					! empty( $f['formula_key'] ) ? sanitize_text_field( $f['formula_key'] ) : null,
+					isset( $f['image_id'] ) ? (int) $f['image_id'] : 0,
+					! empty( $f['desc_on'] ) ? 1 : 0,
+					isset( $f['desc_text'] ) ? wp_kses_post( $f['desc_text'] ) : null ) );
+			}
+			wp_redirect( add_query_arg( array( 'page' => 'tasmekarun', 'brand' => $bid, 'saved' => 1 ), admin_url( 'admin.php' ) ) ); exit;
 		}
-		foreach ( $series as $sid => $f ) {
-			$wpdb->query( $wpdb->prepare(
-				"INSERT INTO {$p}tk_brand_series (brand_id,section_id,coef_on,coef_value,formula_on,formula_key,image_id,desc_on,desc_text) VALUES (%d,%d,%d,%s,%d,%s,%d,%d,%s)
-				 ON DUPLICATE KEY UPDATE coef_on=VALUES(coef_on), coef_value=VALUES(coef_value), formula_on=VALUES(formula_on), formula_key=VALUES(formula_key), image_id=VALUES(image_id), desc_on=VALUES(desc_on), desc_text=VALUES(desc_text)",
-				$bid, (int) $sid,
-				! empty( $f['coef_on'] ) ? 1 : 0,
-				( isset( $f['coef_value'] ) && '' !== $f['coef_value'] ) ? floatval( $f['coef_value'] ) : null,
-				! empty( $f['formula_on'] ) ? 1 : 0,
-				! empty( $f['formula_key'] ) ? sanitize_text_field( $f['formula_key'] ) : null,
-				isset( $f['image_id'] ) ? (int) $f['image_id'] : 0,
-				! empty( $f['desc_on'] ) ? 1 : 0,
-				isset( $f['desc_text'] ) ? wp_kses_post( $f['desc_text'] ) : null ) );
+		if ( isset( $_POST['tk_add_brand'] ) ) {
+			$fa = sanitize_text_field( $_POST['name_fa_new'] ); $en = sanitize_text_field( $_POST['name_en_new'] );
+			$slug = sanitize_title( $en ) ? sanitize_title( $en ) : sanitize_title( $fa );
+			if ( ! $slug ) { $slug = 'brand-' . time(); }
+			$wpdb->query( $wpdb->prepare( "INSERT IGNORE INTO {$p}tk_brands (slug,name_fa,name_en,sort,active) VALUES (%s,%s,%s,999,1)", $slug, $fa, $en ) );
+			wp_redirect( add_query_arg( array( 'page' => 'tasmekarun' ), admin_url( 'admin.php' ) ) ); exit;
 		}
-		wp_redirect( add_query_arg( array( 'page' => 'tasmekarun', 'brand' => $bid, 'saved' => 1 ), admin_url( 'admin.php' ) ) ); exit;
+		if ( isset( $_POST['tk_update_brand'] ) ) {
+			$id = (int) $_POST['tk_update_brand'];
+			if ( isset( $_POST['name_fa'][ $id ], $_POST['name_en'][ $id ] ) ) {
+				$wpdb->update( "{$p}tk_brands", array(
+					'name_fa' => sanitize_text_field( $_POST['name_fa'][ $id ] ),
+					'name_en' => sanitize_text_field( $_POST['name_en'][ $id ] ),
+				), array( 'id' => $id ) );
+			}
+			wp_redirect( add_query_arg( array( 'page' => 'tasmekarun' ), admin_url( 'admin.php' ) ) ); exit;
+		}
+		if ( isset( $_POST['tk_del_brand'] ) ) {
+			$id = (int) $_POST['tk_del_brand'];
+			$wpdb->query( $wpdb->prepare( "DELETE FROM {$p}tk_brand_series WHERE brand_id=%d", $id ) );
+			$wpdb->query( $wpdb->prepare( "DELETE FROM {$p}tk_stock WHERE brand_id=%d", $id ) );
+			$wpdb->query( $wpdb->prepare( "DELETE FROM {$p}tk_coefficients WHERE brand_id=%d", $id ) );
+			$wpdb->query( $wpdb->prepare( "DELETE FROM {$p}tk_brands WHERE id=%d", $id ) );
+			wp_redirect( add_query_arg( array( 'page' => 'tasmekarun' ), admin_url( 'admin.php' ) ) ); exit;
+		}
 	}
 
 	$bid = isset( $_GET['brand'] ) ? (int) $_GET['brand'] : 0;
 	tk_assets();
 
+	/* ---------- نمای پوشه‌ها ---------- */
 	if ( ! $bid ) {
 		$brands = $wpdb->get_results( "SELECT b.*, (SELECT COUNT(*) FROM {$p}tk_brand_series x WHERE x.brand_id=b.id) AS cnt FROM {$p}tk_brands b ORDER BY b.name_fa" );
-		echo '<div class="wrap" dir="rtl"><h1>پوشه‌های برند</h1><div class="tk-folders">';
+		echo '<div class="wrap" dir="rtl"><h1>پوشه‌های برند</h1>';
+		echo '<form method="post" style="display:flex;gap:8px;flex-wrap:wrap;margin:12px 0">' . wp_nonce_field( 'tk_act', 'tk_nonce', true ) . '
+		<input type="text" name="name_fa_new" placeholder="نام فارسی پوشه جدید" required>
+		<input type="text" name="name_en_new" placeholder="نام انگلیسی" dir="ltr" required>
+		<button name="tk_add_brand" value="1" class="button button-primary">افزودن پوشه</button></form>';
+		echo '<div class="tk-folders">';
 		foreach ( $brands as $b ) {
-			echo '<div class="tk-folder"><div class="ico">📁</div><strong>' . esc_html( $b->name_fa ) . '</strong><br><small>' . (int) $b->cnt . ' سری فعال</small><br><a class="button" href="' . esc_url( add_query_arg( array( 'page' => 'tasmekarun', 'brand' => $b->id ), admin_url( 'admin.php' ) ) ) . '">باز کردن</a></div>';
+			echo '<div class="tk-folder"><form method="post" style="margin:0">' . wp_nonce_field( 'tk_act', 'tk_nonce', true ) . '
+			<div class="ico">📁</div>
+			<input type="text" name="name_fa[' . $b->id . ']" value="' . esc_attr( $b->name_fa ) . '" style="text-align:center;width:100%">
+			<input type="text" name="name_en[' . $b->id . ']" value="' . esc_attr( $b->name_en ) . '" dir="ltr" style="text-align:center;width:100%">
+			<small>' . (int) $b->cnt . ' سری فعال</small><br>
+			<a class="button" href="' . esc_url( add_query_arg( array( 'page' => 'tasmekarun', 'brand' => $b->id ), admin_url( 'admin.php' ) ) ) . '">باز کردن</a>
+			<button name="tk_update_brand" value="' . $b->id . '" class="button button-small">ذخیره نام</button>
+			<button name="tk_del_brand" value="' . $b->id . '" class="button button-small" onclick="return confirm(\'پوشه و همه تنظیمات و موجودی آن حذف شود؟\');">حذف</button>
+			</form></div>';
 		}
 		echo '</div></div>';
 		return;
 	}
 
+	/* ---------- نمای داخل پوشه ---------- */
 	$brand = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$p}tk_brands WHERE id=%d", $bid ) );
 	if ( ! $brand ) { return; }
 	wp_enqueue_media();
@@ -182,7 +225,7 @@ function tk_page_folders() {
 	document.addEventListener('change', function(e){
 		var t = e.target;
 		if ( t.classList.contains('js-cat-on') ) {
-			var box = document.getElementById('tk-cat-' + t.dataset.cat) || t.closest('.tk-acc');
+			var box = t.closest('.tk-acc');
 			box.querySelectorAll('.js-series-on').forEach(function(s){ s.checked = t.checked; s.dispatchEvent(new Event('change')); });
 		} else if ( t.classList.contains('js-series-on') ) {
 			t.closest('.tk-series').querySelector('.tk-series-body').style.display = t.checked ? 'block' : 'none';
