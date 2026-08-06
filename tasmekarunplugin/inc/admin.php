@@ -145,18 +145,18 @@ function tk_page_folders() {
 				$wpdb->query( $wpdb->prepare( "DELETE FROM {$p}tk_series_ranges WHERE brand_id=%d AND section_id=%d", $bid, $sid ) );
 				$msg = 'reset';
 			}
-			tk_goto( add_query_arg( array( 'page' => 'tasmekarun', 'brand' => $bid, 'tkmsg' => $msg ), admin_url( 'admin.php' ) ) ); exit;
+			tk_goto( add_query_arg( array( 'page' => 'tasmekarun', 'brand' => $bid, 'tkmsg' => $msg ), admin_url( 'admin.php' ) ) );
 		}
 
 		if ( isset( $_POST['tk_save_folder'] ) ) {
-			tk_goto( add_query_arg( array( 'page' => 'tasmekarun', 'brand' => (int) $_POST['brand_id'], 'tkmsg' => 'saved' ), admin_url( 'admin.php' ) ) ); exit;
+			tk_goto( add_query_arg( array( 'page' => 'tasmekarun', 'brand' => (int) $_POST['brand_id'], 'tkmsg' => 'saved' ), admin_url( 'admin.php' ) ) );
 		}
 		if ( isset( $_POST['tk_add_brand'] ) ) {
 			$fa = sanitize_text_field( $_POST['name_fa_new'] ); $en = sanitize_text_field( $_POST['name_en_new'] );
 			$slug = sanitize_title( $en ) ? sanitize_title( $en ) : sanitize_title( $fa );
 			if ( ! $slug ) { $slug = 'brand-' . time(); }
 			$wpdb->query( $wpdb->prepare( "INSERT IGNORE INTO {$p}tk_brands (slug,name_fa,name_en,sort,active) VALUES (%s,%s,%s,999,1)", $slug, $fa, $en ) );
-			tk_goto( add_query_arg( array( 'page' => 'tasmekarun' ), admin_url( 'admin.php' ) ) ); exit;
+			tk_goto( add_query_arg( array( 'page' => 'tasmekarun' ), admin_url( 'admin.php' ) ) );
 		}
 		if ( isset( $_POST['tk_update_brand'] ) ) {
 			$id = (int) $_POST['tk_update_brand'];
@@ -166,7 +166,7 @@ function tk_page_folders() {
 					'name_en' => sanitize_text_field( $_POST['name_en'][ $id ] ),
 				), array( 'id' => $id ) );
 			}
-			tk_goto( add_query_arg( array( 'page' => 'tasmekarun' ), admin_url( 'admin.php' ) ) ); exit;
+			tk_goto( add_query_arg( array( 'page' => 'tasmekarun' ), admin_url( 'admin.php' ) ) );
 		}
 		if ( isset( $_POST['tk_del_brand'] ) ) {
 			$id = (int) $_POST['tk_del_brand'];
@@ -174,7 +174,7 @@ function tk_page_folders() {
 			$wpdb->query( $wpdb->prepare( "DELETE FROM {$p}tk_stock WHERE brand_id=%d", $id ) );
 			$wpdb->query( $wpdb->prepare( "DELETE FROM {$p}tk_coefficients WHERE brand_id=%d", $id ) );
 			$wpdb->query( $wpdb->prepare( "DELETE FROM {$p}tk_brands WHERE id=%d", $id ) );
-			tk_goto( add_query_arg( array( 'page' => 'tasmekarun' ), admin_url( 'admin.php' ) ) ); exit;
+			tk_goto( add_query_arg( array( 'page' => 'tasmekarun' ), admin_url( 'admin.php' ) ) );
 		}
 	}
 
@@ -183,7 +183,7 @@ function tk_page_folders() {
 
 	$map_msg = array(
 		'saved' => array( 'ذخیره شد ✔', 'success' ),
-		'dup'   => array( 'این بازه/سایز قبلاً در لیست ساخت پوشش داده شده بود؛ تکراری اضافه نشد.', 'warning' ),
+		'dup'   => array( 'این بازه/سایز قبلاً پوشش داده شده بود؛ تکراری اضافه نشد.', 'warning' ),
 		'noop'  => array( 'این سایز/بازه در لیست ساخت نیست؛ چیزی کم نشد.', 'warning' ),
 		'reset' => array( 'بازه‌ها ریست شد؛ حالا کل بازه بخش فعال است.', 'success' ),
 	);
@@ -192,20 +192,15 @@ function tk_page_folders() {
 		echo '<div class="notice notice-' . $m[1] . '"><p>' . esc_html( $m[0] ) . '</p></div>';
 	}
 
+	/* ---------- نمای پوشه‌ها ---------- */
 	if ( ! $bid ) {
-		$q = isset( $_GET['q'] ) ? sanitize_text_field( wp_unslash( $_GET['q'] ) ) : '';
 		echo '<div class="wrap" dir="rtl"><h1>پوشه‌های برند</h1>';
 		echo '<input type="search" id="tk-brand-search" style="margin:10px 0;max-width:320px" placeholder="جستجوی زنده برند…">';
 		echo '<form method="post" style="display:flex;gap:8px;flex-wrap:wrap;margin:12px 0">' . wp_nonce_field( 'tk_act', 'tk_nonce', true ) . '
 		<input type="text" name="name_fa_new" placeholder="نام فارسی پوشه جدید" required>
 		<input type="text" name="name_en_new" placeholder="نام انگلیسی" dir="ltr" required>
 		<button name="tk_add_brand" value="1" class="button button-primary">افزودن پوشه</button></form>';
-		if ( '' !== $q ) {
-			$like = '%' . $wpdb->esc_like( $q ) . '%';
-			$brands = $wpdb->get_results( $wpdb->prepare( "SELECT b.*, (SELECT COUNT(*) FROM {$p}tk_brand_series x WHERE x.brand_id=b.id) AS cnt FROM {$p}tk_brands b WHERE b.name_fa LIKE %s OR b.name_en LIKE %s ORDER BY b.name_fa", $like, $like ) );
-		} else {
-			$brands = $wpdb->get_results( "SELECT b.*, (SELECT COUNT(*) FROM {$p}tk_brand_series x WHERE x.brand_id=b.id) AS cnt FROM {$p}tk_brands b ORDER BY b.name_fa" );
-		}
+		$brands = $wpdb->get_results( "SELECT b.*, (SELECT COUNT(*) FROM {$p}tk_brand_series x WHERE x.brand_id=b.id) AS cnt FROM {$p}tk_brands b ORDER BY b.name_fa" );
 		echo '<div class="tk-folders">';
 		foreach ( $brands as $b ) {
 			echo '<div class="tk-folder"><form method="post" style="margin:0">' . wp_nonce_field( 'tk_act', 'tk_nonce', true ) . '
@@ -238,6 +233,7 @@ HTML;
 		return;
 	}
 
+	/* ---------- نمای داخل پوشه ---------- */
 	$brand = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$p}tk_brands WHERE id=%d", $bid ) );
 	if ( ! $brand ) { return; }
 	wp_enqueue_media();
@@ -251,7 +247,7 @@ HTML;
 	?>
 	<div class="wrap" dir="rtl">
 	<h1>پوشه برند: <?php echo esc_html( $brand->name_fa ); ?> <a class="page-title-action" href="<?php echo esc_url( admin_url( 'admin.php?page=tasmekarun' ) ); ?>">بازگشت</a></h1>
-	<form method="post">
+	<form method="post" id="tk-folder-form">
 		<?php wp_nonce_field( 'tk_act', 'tk_nonce' ); ?>
 		<input type="hidden" name="brand_id" value="<?php echo $bid; ?>">
 		<div class="tk-row" style="margin-bottom:14px">
@@ -324,6 +320,12 @@ HTML;
 							$first = array_slice( $chunks, 0, 12 );
 							$rest  = array_slice( $chunks, 12 );
 							foreach ( $first as $ch ) { echo '<code style="' . $csstyle . '">' . $fmt( $ch ) . '</code>'; }
+							if ( $rest ) {
+								echo '<button type="button" class="button button-small tk-more-btn" style="margin-left:6px">+' . count( $rest ) . ' بازه دیگر</button>';
+								echo '<span class="tk-more-list" style="display:none">';
+								foreach ( $rest as $ch ) { echo '<code style="' . $csstyle . '">' . $fmt( $ch ) . '</code>'; }
+								echo '</span>';
+							}
 							$set_flip = array_flip( TK_Engine::size_set( $s, $bid ) );
 							foreach ( TK_Engine::ranges( $bid, $sid ) as $or ) {
 								if ( 'out' !== $or->mode ) { continue; }
@@ -362,13 +364,14 @@ HTML;
 		echo '</div></div>';
 	}
 	?>
-		<p><button name="tk_save_folder" value="1" class="button button-primary">ذخیره پوشه</button></p>
+		<p style="height:60px"></p>
+		<p class="tk-sticky-save" style="position:fixed;bottom:18px;left:18px;z-index:99999;margin:0"><button name="tk_save_folder" value="1" class="button button-primary" style="box-shadow:0 4px 14px rgba(0,0,0,.3)">ذخیره پوشه</button></p>
 	</form>
 	<script>
 	document.addEventListener('change', function(e){
 		var t = e.target;
 		if ( t.classList.contains('js-cat-on') ) {
-			t.closest('.tk-acc').querySelectorAll('.js-series-on').forEach(function(s){ s.checked = t.checked; s.dispatchEvent(new Event('change')); });
+			t.closest('.tk-acc').querySelectorAll('.js-series-on').forEach(function(s){ s.checked = t.checked; s.dispatchEvent(new Event('change', {bubbles:true})); });
 		} else if ( t.classList.contains('js-series-on') ) {
 			t.closest('.tk-series').querySelector('.tk-series-body').style.display = t.checked ? 'block' : 'none';
 		} else if ( t.classList.contains('js-flip') ) {
@@ -378,11 +381,7 @@ HTML;
 	});
 	document.addEventListener('click', function(e){
 		var mb = e.target.closest('.tk-more-btn');
-		if ( mb ) {
-			var l = mb.nextElementSibling;
-			if ( l ) { l.style.display = ( l.style.display === 'none' ? 'inline' : 'none' ); }
-			return;
-		}
+		if ( mb ) { var l = mb.nextElementSibling; if ( l ) { l.style.display = ( l.style.display === 'none' ? 'inline' : 'none' ); } return; }
 		var b = e.target.closest('.tk-up-btn');
 		if ( ! b ) return;
 		e.preventDefault();
@@ -394,14 +393,13 @@ HTML;
 		});
 		m.open();
 	});
-	var bs = document.getElementById('tk-brand-search');
-	if ( bs ) {
-		bs.addEventListener('input', function(){
-			var q = bs.value.trim().toLowerCase();
-			document.querySelectorAll('.tk-folder').forEach(function(f){
-				var fa = f.querySelector('input[name^="name_fa"]'), en = f.querySelector('input[name^="name_en"]');
-				var t = ((fa ? fa.value : '') + ' ' + (en ? en.value : '')).toLowerCase();
-				f.style.display = ( ! q || t.indexOf(q) !== -1 ) ? '' : 'none';
+	var ff = document.getElementById('tk-folder-form');
+	if ( ff ) {
+		ff.addEventListener('submit', function(){
+			document.querySelectorAll('.js-cat-on').forEach(function(c){
+				if ( ! c.checked ) {
+					c.closest('.tk-acc').querySelectorAll('.js-series-on').forEach(function(s){ s.checked = false; });
+				}
 			});
 		});
 	}
