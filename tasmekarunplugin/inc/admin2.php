@@ -171,6 +171,9 @@ function tk_page_sections() {
 			foreach ( (array) $_POST['sec_formula'] as $sid => $fk ) {
 				$wpdb->update( "{$p}tk_sections", array( 'formula_key' => sanitize_text_field( $fk ) ), array( 'id' => (int) $sid ) );
 			}
+			foreach ( (array) $_POST['sec_min'] as $sid => $mv ) {
+				$wpdb->update( "{$p}tk_sections", array( 'min_charge' => (int) $mv ), array( 'id' => (int) $sid ) );
+			}
 		}
 		wp_redirect( $_SERVER['REQUEST_URI'] ); exit;
 	}
@@ -193,11 +196,11 @@ function tk_page_sections() {
 		echo '<div class="tk-row"><strong>فرمول کل دسته:</strong> <select name="cat_formula[' . $c->id . ']"><option value="">— بدون فرمول —</option>';
 		foreach ( $formulas as $f ) { echo '<option value="' . esc_attr( $f->fkey ) . '" ' . selected( $c->formula_key, $f->fkey, false ) . '>' . esc_html( $f->title_fa . ' (' . $f->fkey . ')' ) . '</option>'; }
 		echo '</select></div>';
-		echo '<table class="widefat striped"><tr><th>بخش</th><th>فرمول (خالی = پیروی از دسته)</th></tr>';
+				echo '<table class="widefat striped"><tr><th>بخش</th><th>فرمول (خالی = پیروی از دسته)</th><th>قفل قیمت (کف سایز)</th></tr>';
 		foreach ( $rows as $s ) {
 			echo '<tr><td><strong>' . esc_html( $s->slug ) . '</strong> — ' . esc_html( $s->name_fa ) . '</td><td><select name="sec_formula[' . $s->id . ']"><option value="">پیروی از دسته</option>';
 			foreach ( $formulas as $f ) { echo '<option value="' . esc_attr( $f->fkey ) . '" ' . selected( $s->formula_key, $f->fkey, false ) . '>' . esc_html( $f->title_fa . ' (' . $f->fkey . ')' ) . '</option>'; }
-			echo '</select></td></tr>';
+			echo '</select></td><td><input type="number" name="sec_min[' . $s->id . ']" value="' . esc_attr( $s->min_charge ) . '" style="width:90px" placeholder="0 = بدون قفل"></td></tr>';
 		}
 		echo '</table></div></div>';
 	endforeach; ?>

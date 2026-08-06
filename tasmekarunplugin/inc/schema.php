@@ -35,6 +35,7 @@ function tk_create_tables() {
 		size_min INT NOT NULL DEFAULT 16,
 		size_max INT NOT NULL DEFAULT 3000,
 		length_std VARCHAR(8) NOT NULL DEFAULT 'Li',
+		min_charge INT NOT NULL DEFAULT 0,
 		sort INT NOT NULL DEFAULT 0,
 		active TINYINT NOT NULL DEFAULT 1,
 		PRIMARY KEY  (id), UNIQUE KEY slug (slug), KEY cat (category_id)
@@ -112,6 +113,16 @@ function tk_create_tables() {
 		coef DECIMAL(16,2) NOT NULL DEFAULT 0,
 		updated_at DATETIME NOT NULL,
 		PRIMARY KEY  (id), UNIQUE KEY bs (brand_id,section_id)
+	) $charset;" );
+		dbDelta( "CREATE TABLE {$p}tk_series_ranges (
+		id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+		brand_id BIGINT UNSIGNED NOT NULL,
+		section_id BIGINT UNSIGNED NOT NULL,
+		mode VARCHAR(4) NOT NULL DEFAULT 'in',
+		min INT NOT NULL DEFAULT 0,
+		max INT NOT NULL DEFAULT 0,
+		step INT NOT NULL DEFAULT 1,
+		PRIMARY KEY  (id), KEY bs (brand_id,section_id)
 	) $charset;" );
 }
 

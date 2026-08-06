@@ -77,6 +77,7 @@ class TK_Engine {
 	}
 
 	/** قیمت = ارزیابی عبارت فرمول با متغیرهای LENGTH / RIBS / COEF — فقط سمت سرور */
+		/** قیمت = فرمول با LENGTH/RIBS/COEF + کفِ تعرفه (قفل قیمت) — فقط سمت سرور */
 	public static function price( $brand_id, $parsed ) {
 		if ( ! $parsed ) { return null; }
 		$sec = self::section_by_slug( $parsed['section'] );
@@ -85,11 +86,42 @@ class TK_Engine {
 		if ( null === $coef ) { return null; }
 		$expr = self::formula_expr( self::formula_key_for( $brand_id, $sec ) );
 		if ( '' === $expr ) { return null; }
+		$len = (float) $parsed['size'];
+		$floor = isset( $sec->min_charge ) ? (int) $sec->min_charge : 0;
+		if ( $floor > 0 && $len < $floor ) { $len = (float) $floor; }
 		return self::eval_expr( $expr, array(
-			'LENGTH' => (float) $parsed['size'],
+			'LENGTH' => $len,
 			'RIBS'   => (float) ( $parsed['ribs'] ? $parsed['ribs'] : 1 ),
 			'COEF'   => (float) $coef,
 		) );
+	}
+
+	/** بازه‌های ثبت‌شده برند×سری */
+	public static function ranges( $brand_id, $section_id ) {
+		global $wpdb;
+		return $wpdb->get_results( $wpdb->prepare(
+			"SELECT * FROM {$wpdb->prefix}tk_series_ranges WHERE brand_id=%d AND section_id=%d ORDER BY mode, min", $brand_id, $section_id ) );
+	}
+
+	public static function range_hit( $r, $size ) {
+		$size = (int) $size; $min = (int) $r->min; $max = (int) $r->max;
+		$step = (int) $r->step > 0 ? (int) $r->step : 1;
+		if ( $size < $min || $size > $max ) { return false; }
+		return ( ( $size - $min ) % $step ) === 0;
+	}
+
+	/** آیا این سایز برای این برند ساخته می‌شود؟ */
+	public static function size_allowed( $brand_id, $section_id, $size ) {
+		$rows = self::ranges( $brand_id, $section_id );
+		$has_in = false; $ok = false;
+		foreach ( $rows as $r ) {
+			if ( 'in' === $r->mode ) { $has_in = true; if ( ! $ok && self::range_hit( $r, $size ) ) { $ok = true; } }
+		}
+		if ( $has_in && ! $ok ) { return false; }
+		foreach ( $rows as $r ) {
+			if ( 'out' === $r->mode && self::range_hit( $r, $size ) ) { return false; }
+		}
+		return true;
 	}
 
 	/** ارزیاب امن عبارت: عدد، پرانتز، + - * / و توکن‌ها. بدون eval */
