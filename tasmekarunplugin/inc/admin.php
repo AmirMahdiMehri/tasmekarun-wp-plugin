@@ -5,7 +5,8 @@ require_once TK_PATH . 'inc/admin2.php';
 
 add_action( 'admin_menu', 'tk_admin_menu' );
 function tk_admin_menu() {
-	add_menu_page( 'تسمه کارون', 'تسمه کارون', 'manage_options', 'tasmekarun', 'tk_page_folders', 'dashicons-groups', 56 );
+	$tk_icon = file_exists( TK_PATH . 'assets/icon-128x128.png' ) ? TK_URL . 'assets/icon-128x128.png' : ( file_exists( TK_PATH . 'assets/icon.svg' ) ? TK_URL . 'assets/icon.svg' : 'dashicons-groups' );
+	add_menu_page( 'تسمه کارون', 'تسمه کارون', 'manage_options', 'tasmekarun', 'tk_page_folders', $tk_icon, 56 );
 	add_submenu_page( 'tasmekarun', 'پوشه‌های برند', 'پوشه‌های برند', 'manage_options', 'tasmekarun', 'tk_page_folders' );
 	add_submenu_page( 'tasmekarun', 'پریست‌های ضریب', 'پریست‌های ضریب', 'manage_options', 'tk-presets', 'tk_page_presets' );
 	add_submenu_page( 'tasmekarun', 'فرمول‌ها', 'فرمول‌ها', 'manage_options', 'tk-formulas', 'tk_page_formulas' );
@@ -27,8 +28,8 @@ function tk_goto( $url ) {
 
 function tk_assets() { ?>
 	<style>
-	.tk-folders{display:flex;flex-wrap:wrap;gap:14px;margin-top:14px}
-	.tk-folder{background:#fff;border:1px solid #dcdcde;border-radius:8px;padding:12px 14px;width:220px;text-align:center}
+	.tk-folders{display:flex;flex-wrap:wrap;gap:12px;margin-top:14px}
+	.tk-folder{background:#fff;border:1px solid #dcdcde;border-radius:8px;padding:12px 10px;flex:0 0 calc(20% - 10px);box-sizing:border-box;text-align:center}
 	.tk-folder input[type=text]{width:100%;margin-bottom:4px}
 	.tk-sticky-save{position:fixed;bottom:18px;left:18px;z-index:99999;margin:0}
 	.tk-sticky-save .button{box-shadow:0 4px 14px rgba(0,0,0,.3)}
@@ -109,7 +110,17 @@ function tk_page_folders() {
 					$all = true;
 					for ( $v = $mn; $v <= $mx; $v += $st ) { if ( ! isset( $cur[ $v ] ) ) { $all = false; break; } }
 					if ( $all ) { $msg = 'dup'; }
-					else { $wpdb->query( $wpdb->prepare( "INSERT INTO {$p}tk_series_ranges (brand_id,section_id,mode,min,max,step) VALUES (%d,%d,'in',%d,%d,%d)", $bid, $sid, $mn, $mx, $st ) ); }
+					else {
+						$wpdb->query( $wpdb->prepare( "INSERT INTO {$p}tk_series_ranges (brand_id,section_id,mode,min,max,step) VALUES (%d,%d,'in',%d,%d,%d)", $bid, $sid, $mn, $mx, $st ) );
+						foreach ( $wpdb->get_results( $wpdb->prepare( "SELECT * FROM {$p}tk_series_ranges WHERE brand_id=%d AND section_id=%d AND mode='out'", $bid, $sid ) ) as $orow ) {
+							$ostep = (int) $orow->step > 0 ? (int) $orow->step : 1;
+							$covered = true;
+							for ( $v = (int) $orow->min; $v <= (int) $orow->max; $v += $ostep ) {
+								if ( $v < $mn || $v > $mx || ( $v - $mn ) % $st !== 0 ) { $covered = false; break; }
+							}
+							if ( $covered ) { $wpdb->query( $wpdb->prepare( "DELETE FROM {$p}tk_series_ranges WHERE id=%d", (int) $orow->id ) ); }
+						}
+					}
 				}
 			} elseif ( isset( $_POST['tk_del_range'] ) ) {
 				$sid = (int) $_POST['tk_del_range'];
@@ -314,9 +325,15 @@ HTML;
 							$first = array_slice( $chunks, 0, 12 );
 							$rest  = array_slice( $chunks, 12 );
 							foreach ( $first as $ch ) { echo '<code style="' . $csstyle . '">' . $fmt( $ch ) . '</code>'; }
+							$set_flip = array_flip( TK_Engine::size_set( $s, $bid ) );
 							foreach ( TK_Engine::ranges( $bid, $sid ) as $or ) {
-								if ( 'out' === $or->mode ) {
-									echo '<code style="margin-left:6px;background:#fcf0f1;color:#b32d2e;padding:2px 8px;border-radius:4px">حذف: ' . $or->min . ( $or->max !== $or->min ? '–' . $or->max : '' ) . ( $or->step > 1 ? '/' . $or->step : '' ) . '</code>';
+								if ( 'out' !== $or->mode ) { continue; }
+								$ostep = (int) $or->step > 0 ? (int) $or->step : 1;
+								$del = array();
+								for ( $v = (int) $or->min; $v <= (int) $or->max; $v += $ostep ) { if ( ! isset( $set_flip[ $v ] ) ) { $del[] = $v; } }
+								if ( ! $del ) { continue; }
+								foreach ( TK_Engine::compress_set( $del ) as $ch ) {
+									echo '<code style="margin-left:6px;background:#fcf0f1;color:#b32d2e;padding:2px 8px;border-radius:4px">حذف: ' . ( $ch[0] === $ch[1] ? $ch[0] : $ch[0] . '–' . $ch[1] . ( $ch[2] > 1 ? '/' . $ch[2] : '' ) ) . '</code>';
 								}
 							}
 						}
@@ -549,8 +566,8 @@ function tk_page_test() {
 	}
 	echo '</div>';
 }
-/* لوگوی افزونه در لیست افزونه‌ها */
-add_action( 'admin_head-plugins.php', 'tk_plugin_icon' );
+/* لوگوی افزونه (لیست افزونه‌ها + آیکون منوی ادمین) */
+add_action( 'admin_head', 'tk_plugin_icon' );
 function tk_plugin_icon() {
 	$pngs = glob( TK_PATH . 'assets/*.png' );
 	$svgs = glob( TK_PATH . 'assets/*.svg' );
@@ -561,8 +578,7 @@ function tk_plugin_icon() {
 	echo '<script>document.addEventListener("DOMContentLoaded",function(){
 		var r=document.querySelector(\'tr[data-plugin="tasmekarunplugin/tasmekarunplugin.php"]\');
 		if(!r){var c=document.querySelector(\'input[type="checkbox"][value="tasmekarunplugin/tasmekarunplugin.php"]\');if(c){r=c.closest("tr");}}
-		if(!r){return;}
-		var i=r.querySelector(".plugin-icon");if(!i){return;}
-		if(i.tagName==="IMG"){i.src='.$j.';}else{i.style.backgroundImage="url("+'.$j.'+")";i.style.backgroundSize="100% 100%";}
+		if(r){var i=r.querySelector(".plugin-icon");if(i){if(i.tagName==="IMG"){i.src='.$j.';}else{i.style.backgroundImage="url("+'.$j.'+")";i.style.backgroundSize="100% 100%";}}}
 	});</script>';
+	echo '<style>#toplevel_page_tasmekarun .wp-menu-image img{opacity:1 !important;width:18px;height:18px;border-radius:4px}</style>';
 }
