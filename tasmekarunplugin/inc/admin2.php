@@ -192,7 +192,7 @@ function tk_page_sections() {
 		if ( ! $rows ) { continue; }
 		$over = 0;
 		foreach ( $rows as $s ) { if ( '' !== $s->formula_key ) { $over++; } }
-		echo '<div class="tk-acc' . ( $over ? ' open' : '' ) . '"><div class="tk-acc-head"><span class="arr">‹</span><strong>' . esc_html( $c->name_en ) . '</strong><small style="color:#888">' . esc_html( $c->name_fa ) . '</small></div><div class="tk-acc-body">';
+				echo '<div class="tk-acc"><div class="tk-acc-head"><span class="arr">‹</span><strong>' . esc_html( $c->name_en ) . '</strong><small style="color:#888">' . esc_html( $c->name_fa ) . '</small></div><div class="tk-acc-body">';
 		echo '<div class="tk-row"><strong>فرمول کل دسته:</strong> <select name="cat_formula[' . $c->id . ']"><option value="">— بدون فرمول —</option>';
 		foreach ( $formulas as $f ) { echo '<option value="' . esc_attr( $f->fkey ) . '" ' . selected( $c->formula_key, $f->fkey, false ) . '>' . esc_html( $f->title_fa . ' (' . $f->fkey . ')' ) . '</option>'; }
 		echo '</select></div>';
@@ -204,7 +204,7 @@ function tk_page_sections() {
 		}
 		echo '</table></div></div>';
 	endforeach; ?>
-	<p><button name="tk_save_formulas" value="1" class="button button-primary">ذخیره فرمول‌ها</button></p>
+	<p class="tk-sticky-save"><button name="tk_save_formulas" value="1" class="button button-primary">ذخیره فرمول‌ها</button></p>
 	</form>
 	<h2>افزودن بخش جدید</h2>
 	<form method="post"><?php wp_nonce_field( 'tk_act', 'tk_nonce' ); ?>

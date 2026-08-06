@@ -23,7 +23,10 @@ function tk_ok() {
 function tk_assets() { ?>
 	<style>
 	.tk-folders{display:flex;flex-wrap:wrap;gap:14px;margin-top:14px}
-	.tk-folder{background:#fff;border:1px solid #dcdcde;border-radius:8px;padding:14px 18px;min-width:180px;text-align:center}
+	.tk-folder{background:#fff;border:1px solid #dcdcde;border-radius:8px;padding:12px 14px;width:220px;text-align:center}
+	.tk-folder input[type=text]{width:100%;margin-bottom:4px}
+	.tk-sticky-save{position:fixed;bottom:18px;left:18px;z-index:99999;margin:0}
+	.tk-sticky-save .button{box-shadow:0 4px 14px rgba(0,0,0,.3)}
 	.tk-folder .ico{font-size:38px;line-height:1.2}
 	.tk-series{border:1px solid #e0e0e0;border-radius:6px;padding:10px 12px;margin:8px 0;background:#fff}
 	.tk-series-body{margin-top:10px;border-top:1px dashed #ddd;padding-top:10px}
@@ -57,7 +60,6 @@ function tk_page_folders() {
 	if ( $_SERVER['REQUEST_METHOD'] === 'POST' && tk_ok() ) {
 		$is_range = isset( $_POST['tk_add_range'] ) || isset( $_POST['tk_del_range'] ) || isset( $_POST['tk_reset_ranges'] );
 
-		/* ذخیره پوشه (همیشه، تا تغییرات سری‌ها هنگام کار با بازه‌ها نپرد) */
 		if ( isset( $_POST['tk_save_folder'] ) || $is_range ) {
 			$bid = (int) $_POST['brand_id'];
 			$wpdb->update( "{$p}tk_brands", array( 'default_preset_id' => (int) $_POST['preset_id'] ), array( 'id' => $bid ) );
@@ -83,40 +85,55 @@ function tk_page_folders() {
 			}
 		}
 
-		/* عملیات بازه‌ها */
 		if ( $is_range ) {
 			$bid = (int) $_POST['brand_id'];
+			$msg = 'saved';
 			if ( isset( $_POST['tk_add_range'] ) ) {
 				$sid = (int) $_POST['tk_add_range'];
-				$f = isset( $_POST['rng'][ $sid ] ) ? (array) $_POST['rng'][ $sid ] : array();
+				$sec = TK_Engine::section_by_id( $sid );
+				$f   = isset( $_POST['rng'][ $sid ] ) ? (array) $_POST['rng'][ $sid ] : array();
+				$mn = $mx = $st = null;
 				if ( trim( (string) ( isset( $f['in_single'] ) ? $f['in_single'] : '' ) ) !== '' ) {
-					$v = (int) $f['in_single'];
-					$wpdb->query( $wpdb->prepare( "INSERT INTO {$p}tk_series_ranges (brand_id,section_id,mode,min,max,step) VALUES (%d,%d,'in',%d,%d,1)", $bid, $sid, $v, $v ) );
+					$mn = $mx = (int) $f['in_single']; $st = 1;
 				} elseif ( trim( (string) ( isset( $f['in_min'] ) ? $f['in_min'] : '' ) ) !== '' && trim( (string) ( isset( $f['in_max'] ) ? $f['in_max'] : '' ) ) !== '' ) {
 					$mn = (int) $f['in_min']; $mx = (int) $f['in_max'];
 					$st = isset( $f['in_step'] ) && (int) $f['in_step'] > 0 ? (int) $f['in_step'] : 1;
-					if ( $mn <= $mx ) { $wpdb->query( $wpdb->prepare( "INSERT INTO {$p}tk_series_ranges (brand_id,section_id,mode,min,max,step) VALUES (%d,%d,'in',%d,%d,%d)", $bid, $sid, $mn, $mx, $st ) ); }
+				}
+				if ( null !== $mn && $sec && $mn <= $mx ) {
+					$cur = array_flip( TK_Engine::size_set( $sec, $bid ) );
+					$all = true;
+					for ( $v = $mn; $v <= $mx; $v += $st ) { if ( ! isset( $cur[ $v ] ) ) { $all = false; break; } }
+					if ( $all ) { $msg = 'dup'; }
+					else { $wpdb->query( $wpdb->prepare( "INSERT INTO {$p}tk_series_ranges (brand_id,section_id,mode,min,max,step) VALUES (%d,%d,'in',%d,%d,%d)", $bid, $sid, $mn, $mx, $st ) ); }
 				}
 			} elseif ( isset( $_POST['tk_del_range'] ) ) {
 				$sid = (int) $_POST['tk_del_range'];
-				$f = isset( $_POST['rng'][ $sid ] ) ? (array) $_POST['rng'][ $sid ] : array();
+				$sec = TK_Engine::section_by_id( $sid );
+				$f   = isset( $_POST['rng'][ $sid ] ) ? (array) $_POST['rng'][ $sid ] : array();
+				$mn = $mx = $st = null;
 				if ( trim( (string) ( isset( $f['out_single'] ) ? $f['out_single'] : '' ) ) !== '' ) {
-					$v = (int) $f['out_single'];
-					$wpdb->query( $wpdb->prepare( "INSERT INTO {$p}tk_series_ranges (brand_id,section_id,mode,min,max,step) VALUES (%d,%d,'out',%d,%d,1)", $bid, $sid, $v, $v ) );
+					$mn = $mx = (int) $f['out_single']; $st = 1;
 				} elseif ( trim( (string) ( isset( $f['out_min'] ) ? $f['out_min'] : '' ) ) !== '' && trim( (string) ( isset( $f['out_max'] ) ? $f['out_max'] : '' ) ) !== '' ) {
 					$mn = (int) $f['out_min']; $mx = (int) $f['out_max'];
 					$st = isset( $f['out_step'] ) && (int) $f['out_step'] > 0 ? (int) $f['out_step'] : 1;
-					if ( $mn <= $mx ) { $wpdb->query( $wpdb->prepare( "INSERT INTO {$p}tk_series_ranges (brand_id,section_id,mode,min,max,step) VALUES (%d,%d,'out',%d,%d,%d)", $bid, $sid, $mn, $mx, $st ) ); }
+				}
+				if ( null !== $mn && $sec && $mn <= $mx ) {
+					$cur = array_flip( TK_Engine::size_set( $sec, $bid ) );
+					$any = false;
+					for ( $v = $mn; $v <= $mx; $v += $st ) { if ( isset( $cur[ $v ] ) ) { $any = true; break; } }
+					if ( ! $any ) { $msg = 'noop'; }
+					else { $wpdb->query( $wpdb->prepare( "INSERT INTO {$p}tk_series_ranges (brand_id,section_id,mode,min,max,step) VALUES (%d,%d,'out',%d,%d,%d)", $bid, $sid, $mn, $mx, $st ) ); }
 				}
 			} elseif ( isset( $_POST['tk_reset_ranges'] ) ) {
 				$sid = (int) $_POST['tk_reset_ranges'];
 				$wpdb->query( $wpdb->prepare( "DELETE FROM {$p}tk_series_ranges WHERE brand_id=%d AND section_id=%d", $bid, $sid ) );
+				$msg = 'reset';
 			}
-			wp_redirect( add_query_arg( array( 'page' => 'tasmekarun', 'brand' => $bid, 'saved' => 1 ), admin_url( 'admin.php' ) ) ); exit;
+			wp_redirect( add_query_arg( array( 'page' => 'tasmekarun', 'brand' => $bid, 'tkmsg' => $msg ), admin_url( 'admin.php' ) ) ); exit;
 		}
 
 		if ( isset( $_POST['tk_save_folder'] ) ) {
-			wp_redirect( add_query_arg( array( 'page' => 'tasmekarun', 'brand' => (int) $_POST['brand_id'], 'saved' => 1 ), admin_url( 'admin.php' ) ) ); exit;
+			wp_redirect( add_query_arg( array( 'page' => 'tasmekarun', 'brand' => (int) $_POST['brand_id'], 'tkmsg' => 'saved' ), admin_url( 'admin.php' ) ) ); exit;
 		}
 		if ( isset( $_POST['tk_add_brand'] ) ) {
 			$fa = sanitize_text_field( $_POST['name_fa_new'] ); $en = sanitize_text_field( $_POST['name_en_new'] );
@@ -148,19 +165,37 @@ function tk_page_folders() {
 	$bid = isset( $_GET['brand'] ) ? (int) $_GET['brand'] : 0;
 	tk_assets();
 
+	$map_msg = array(
+		'saved' => array( 'ذخیره شد ✔', 'success' ),
+		'dup'   => array( 'این بازه/سایز قبلاً در لیست ساخت پوشش داده شده بود؛ تکراری اضافه نشد.', 'warning' ),
+		'noop'  => array( 'این سایز/بازه در لیست ساخت نیست؛ چیزی کم نشد.', 'warning' ),
+		'reset' => array( 'بازه‌ها ریست شد؛ حالا کل بازه بخش فعال است.', 'success' ),
+	);
+	if ( isset( $_GET['tkmsg'], $map_msg[ $_GET['tkmsg'] ] ) ) {
+		$m = $map_msg[ $_GET['tkmsg'] ];
+		echo '<div class="notice notice-' . $m[1] . '"><p>' . esc_html( $m[0] ) . '</p></div>';
+	}
+
 	if ( ! $bid ) {
-		$brands = $wpdb->get_results( "SELECT b.*, (SELECT COUNT(*) FROM {$p}tk_brand_series x WHERE x.brand_id=b.id) AS cnt FROM {$p}tk_brands b ORDER BY b.name_fa" );
+		$q = isset( $_GET['q'] ) ? sanitize_text_field( wp_unslash( $_GET['q'] ) ) : '';
 		echo '<div class="wrap" dir="rtl"><h1>پوشه‌های برند</h1>';
+		echo '<form method="get" style="display:flex;gap:8px;margin:10px 0"><input type="hidden" name="page" value="tasmekarun"><input type="search" name="q" value="' . esc_attr( $q ) . '" placeholder="جستجوی برند…"> <button class="button">جستجو</button></form>';
 		echo '<form method="post" style="display:flex;gap:8px;flex-wrap:wrap;margin:12px 0">' . wp_nonce_field( 'tk_act', 'tk_nonce', true ) . '
 		<input type="text" name="name_fa_new" placeholder="نام فارسی پوشه جدید" required>
 		<input type="text" name="name_en_new" placeholder="نام انگلیسی" dir="ltr" required>
 		<button name="tk_add_brand" value="1" class="button button-primary">افزودن پوشه</button></form>';
+		if ( '' !== $q ) {
+			$like = '%' . $wpdb->esc_like( $q ) . '%';
+			$brands = $wpdb->get_results( $wpdb->prepare( "SELECT b.*, (SELECT COUNT(*) FROM {$p}tk_brand_series x WHERE x.brand_id=b.id) AS cnt FROM {$p}tk_brands b WHERE b.name_fa LIKE %s OR b.name_en LIKE %s ORDER BY b.name_fa", $like, $like ) );
+		} else {
+			$brands = $wpdb->get_results( "SELECT b.*, (SELECT COUNT(*) FROM {$p}tk_brand_series x WHERE x.brand_id=b.id) AS cnt FROM {$p}tk_brands b ORDER BY b.name_fa" );
+		}
 		echo '<div class="tk-folders">';
 		foreach ( $brands as $b ) {
 			echo '<div class="tk-folder"><form method="post" style="margin:0">' . wp_nonce_field( 'tk_act', 'tk_nonce', true ) . '
 			<div class="ico">📁</div>
-			<input type="text" name="name_fa[' . $b->id . ']" value="' . esc_attr( $b->name_fa ) . '" style="text-align:center;width:100%">
-			<input type="text" name="name_en[' . $b->id . ']" value="' . esc_attr( $b->name_en ) . '" dir="ltr" style="text-align:center;width:100%">
+			<input type="text" name="name_fa[' . $b->id . ']" value="' . esc_attr( $b->name_fa ) . '">
+			<input type="text" name="name_en[' . $b->id . ']" value="' . esc_attr( $b->name_en ) . '" dir="ltr">
 			<small>' . (int) $b->cnt . ' سری فعال</small><br>
 			<a class="button" href="' . esc_url( add_query_arg( array( 'page' => 'tasmekarun', 'brand' => $b->id ), admin_url( 'admin.php' ) ) ) . '">باز کردن</a>
 			<button name="tk_update_brand" value="' . $b->id . '" class="button button-small">ذخیره نام</button>
@@ -181,7 +216,6 @@ function tk_page_folders() {
 	$rows     = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM {$p}tk_brand_series WHERE brand_id=%d", $bid ) );
 	$map = array();
 	foreach ( $rows as $r ) { $map[ (int) $r->section_id ] = $r; }
-	if ( isset( $_GET['saved'] ) ) { echo '<div class="notice notice-success"><p>پوشه ذخیره شد ✔</p></div>'; }
 	?>
 	<div class="wrap" dir="rtl">
 	<h1>پوشه برند: <?php echo esc_html( $brand->name_fa ); ?> <a class="page-title-action" href="<?php echo esc_url( admin_url( 'admin.php?page=tasmekarun' ) ); ?>">بازگشت</a></h1>
@@ -194,7 +228,6 @@ function tk_page_folders() {
 				<option value="0">— بدون پریست —</option>
 				<?php foreach ( $presets as $pr ) : ?><option value="<?php echo $pr->id; ?>" <?php selected( (int) $brand->default_preset_id, (int) $pr->id ); ?>><?php echo esc_html( $pr->title_fa ); ?></option><?php endforeach; ?>
 			</select>
-			<small>(پریست‌ها از صفحه «پریست‌های ضریب» اضافه/حذف می‌شوند)</small>
 		</div>
 	<?php
 	foreach ( $cats as $c ) {
@@ -231,7 +264,6 @@ function tk_page_folders() {
 								<?php foreach ( $formulas as $fo ) : ?><option value="<?php echo esc_attr( $fo->fkey ); ?>" <?php selected( $r ? $r->formula_key : '', $fo->fkey ); ?>><?php echo esc_html( $fo->title_fa . ' (' . $fo->fkey . ')' ); ?></option><?php endforeach; ?>
 							</select>
 						</span>
-						<small>(خاموش = فرمول پیشفرض بخش/دسته)</small>
 					</div>
 					<div class="tk-row">
 						عکس مشترک سری:
@@ -245,14 +277,21 @@ function tk_page_folders() {
 						<span id="tk-dt-<?php echo $sid; ?>" style="<?php echo ( $r && $r->desc_on ) ? '' : 'display:none'; ?>;width:100%">
 							<textarea name="series[<?php echo $sid; ?>][desc_text]" rows="3" style="width:100%"><?php echo esc_textarea( $r ? $r->desc_text : '' ); ?></textarea>
 						</span>
-						<small>(خاموش = دسکریپشن اتوماتیک با مشخصات فنی داینامیک)</small>
 					</div>
-					<?php $rl = TK_Engine::ranges( $bid, $sid ); ?>
 					<div class="tk-row" style="border-top:1px dashed #ddd;padding-top:8px">
-						<strong>بازه‌های ساخت:</strong>
-						<?php if ( $rl ) { foreach ( $rl as $rr ) {
-							echo '<code style="margin-left:6px;background:#f0f0f1;padding:2px 8px;border-radius:4px">' . ( 'out' === $rr->mode ? 'حذف: ' : '' ) . $rr->min . ( $rr->max !== $rr->min ? '–' . $rr->max : '' ) . ( $rr->step > 1 ? ' گام ' . $rr->step : '' ) . '</code>';
-						} } else { echo '<small>کل بازه بخش (بدون محدودیت)</small>'; } ?>
+						<strong>بازه‌های موجود در سایت:</strong>
+						<?php
+						if ( ! TK_Engine::ranges( $bid, $sid ) ) {
+							echo '<small>کل بازه بخش (' . (int) $s->size_min . ' تا ' . (int) $s->size_max . ')</small>';
+						} else {
+							$chunks = TK_Engine::compress_set( TK_Engine::size_set( $s, $bid ) );
+							$show = array_slice( $chunks, 0, 25 );
+							foreach ( $show as $ch ) {
+								echo '<code style="margin-left:6px;background:#f0f0f1;padding:2px 8px;border-radius:4px">' . $ch[0] . ( $ch[1] !== $ch[0] ? '–' . $ch[1] : '' ) . '</code>';
+							}
+							if ( count( $chunks ) > 25 ) { echo '<small>+' . ( count( $chunks ) - 25 ) . ' بازه دیگر</small>'; }
+						}
+						?>
 					</div>
 					<div class="tk-row">
 						<button name="tk_add_range" value="<?php echo $sid; ?>" class="button button-small">اضافه کردن</button>
@@ -463,4 +502,13 @@ function tk_page_test() {
 		echo '</table>';
 	}
 	echo '</div>';
+}
+/* لوگوی افزونه در لیست افزونه‌ها */
+add_action( 'admin_head-plugins.php', 'tk_plugin_icon' );
+function tk_plugin_icon() {
+	$use = '';
+	if ( file_exists( TK_PATH . 'assets/icon-128x128.png' ) ) { $use = TK_URL . 'assets/icon-128x128.png'; }
+	elseif ( file_exists( TK_PATH . 'assets/icon.svg' ) ) { $use = TK_URL . 'assets/icon.svg'; }
+	if ( ! $use ) { return; }
+	echo '<style>tr[data-plugin="tasmekarunplugin/tasmekarunplugin.php"] .plugin-icon{background-image:url(' . esc_url( $use ) . ');background-size:100% 100%;background-color:transparent}</style>';
 }

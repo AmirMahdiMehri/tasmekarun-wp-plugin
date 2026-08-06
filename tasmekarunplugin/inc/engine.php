@@ -103,25 +103,51 @@ class TK_Engine {
 			"SELECT * FROM {$wpdb->prefix}tk_series_ranges WHERE brand_id=%d AND section_id=%d ORDER BY mode, min", $brand_id, $section_id ) );
 	}
 
-	public static function range_hit( $r, $size ) {
-		$size = (int) $size; $min = (int) $r->min; $max = (int) $r->max;
-		$step = (int) $r->step > 0 ? (int) $r->step : 1;
-		if ( $size < $min || $size > $max ) { return false; }
-		return ( ( $size - $min ) % $step ) === 0;
+		public static function section_by_id( $id ) {
+		global $wpdb;
+		return $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}tk_sections WHERE id=%d", (int) $id ) );
 	}
 
-	/** آیا این سایز برای این برند ساخته می‌شود؟ */
+	/** مجموعه سایزهای واقعیِ قابل ساخت (با گام، بازه‌ها و کسرها) */
+	public static function size_set( $section, $brand_id ) {
+		$rows = self::ranges( $brand_id, (int) $section->id );
+		$set = array();
+		$has_in = false;
+		foreach ( $rows as $r ) { if ( 'in' === $r->mode ) { $has_in = true; break; } }
+		if ( $has_in ) {
+			foreach ( $rows as $r ) {
+				if ( 'in' !== $r->mode ) { continue; }
+				$step = (int) $r->step > 0 ? (int) $r->step : 1;
+				for ( $v = (int) $r->min; $v <= (int) $r->max; $v += $step ) { $set[ $v ] = true; }
+			}
+		} else {
+			for ( $v = (int) $section->size_min; $v <= (int) $section->size_max; $v++ ) { $set[ $v ] = true; }
+		}
+		foreach ( $rows as $r ) {
+			if ( 'out' !== $r->mode ) { continue; }
+			$step = (int) $r->step > 0 ? (int) $r->step : 1;
+			for ( $v = (int) $r->min; $v <= (int) $r->max; $v += $step ) { unset( $set[ $v ] ); }
+		}
+		ksort( $set );
+		return array_keys( $set );
+	}
+
+	/** فشرده‌سازی اعداد پشت‌سرهم به بازه برای نمایش (205,206,...,210 → 205–210) */
+	public static function compress_set( $sizes ) {
+		$out = array(); $start = null; $prev = null;
+		foreach ( $sizes as $v ) {
+			if ( null === $start ) { $start = $prev = $v; continue; }
+			if ( $v === $prev + 1 ) { $prev = $v; continue; }
+			$out[] = array( $start, $prev ); $start = $prev = $v;
+		}
+		if ( null !== $start ) { $out[] = array( $start, $prev ); }
+		return $out;
+	}
+
 	public static function size_allowed( $brand_id, $section_id, $size ) {
-		$rows = self::ranges( $brand_id, $section_id );
-		$has_in = false; $ok = false;
-		foreach ( $rows as $r ) {
-			if ( 'in' === $r->mode ) { $has_in = true; if ( ! $ok && self::range_hit( $r, $size ) ) { $ok = true; } }
-		}
-		if ( $has_in && ! $ok ) { return false; }
-		foreach ( $rows as $r ) {
-			if ( 'out' === $r->mode && self::range_hit( $r, $size ) ) { return false; }
-		}
-		return true;
+		$sec = self::section_by_id( $section_id );
+		if ( ! $sec ) { return false; }
+		return in_array( (int) $size, self::size_set( $sec, $brand_id ), true );
 	}
 
 	/** ارزیاب امن عبارت: عدد، پرانتز، + - * / و توکن‌ها. بدون eval */
