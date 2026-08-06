@@ -69,8 +69,11 @@ function tk_page_folders() {
 		if ( isset( $_POST['tk_save_folder'] ) || $is_range ) {
 			$bid = (int) $_POST['brand_id'];
 			$wpdb->update( "{$p}tk_brands", array( 'default_preset_id' => (int) $_POST['preset_id'] ), array( 'id' => $bid ) );
-			$series = isset( $_POST['series'] ) ? (array) $_POST['series'] : array();
-			$ids = array_map( 'intval', array_keys( $series ) );
+			$series = array();
+			foreach ( ( isset( $_POST['series'] ) ? (array) $_POST['series'] : array() ) as $sid => $f ) {
+				if ( ! empty( $f['on'] ) ) { $series[ (int) $sid ] = $f; }
+			}
+			$ids = array_keys( $series );
 			if ( $ids ) {
 				$wpdb->query( "DELETE FROM {$p}tk_brand_series WHERE brand_id=$bid AND section_id NOT IN (" . implode( ',', $ids ) . ')' );
 			} else {
