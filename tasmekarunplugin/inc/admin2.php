@@ -183,4 +183,29 @@ function tk_page_settings() {
 	if ( $_SERVER['REQUEST_METHOD'] === 'POST' && tk_ok() && isset( $_POST['tk_save_settings'] ) ) {
 		update_option( 'tk_settings', array(
 			'phone'     => sanitize_text_field( $_POST['phone'] ),
-			'currency'  => sanitize_text
+			'currency'  => sanitize_text_field( $_POST['currency'] ),
+			'tpl_title' => sanitize_text_field( $_POST['tpl_title'] ),
+			'tpl_desc'  => wp_kses_post( $_POST['tpl_desc'] ),
+		) );
+		echo '<div class="notice notice-success"><p>تنظیمات ذخیره شد ✔</p></div>';
+	}
+	$set = wp_parse_args( get_option( 'tk_settings', array() ), array(
+		'phone' => '021-00000000',
+		'currency' => 'ریال',
+		'tpl_title' => 'تسمه {sku} برند {brand}',
+		'tpl_desc' => 'تسمه صنعتی {sku} برند {brand} — قیمت به‌روز و ضمانت اصالت. برای خرید عمده تماس بگیرید.',
+	) );
+	?>
+	<div class="wrap" dir="rtl">
+	<h1>تنظیمات تسمه کارون</h1>
+	<form method="post"><?php wp_nonce_field( 'tk_act', 'tk_nonce' ); ?>
+	<table class="form-table">
+	<tr><th>شماره تلفن «برای خرید تماس بگیرید»</th><td><input type="text" name="phone" value="<?php echo esc_attr( $set['phone'] ); ?>" style="direction:ltr"></td></tr>
+	<tr><th>واحد پول</th><td><input type="text" name="currency" value="<?php echo esc_attr( $set['currency'] ); ?>"></td></tr>
+	<tr><th>قالب عنوان محصول</th><td><input type="text" name="tpl_title" value="<?php echo esc_attr( $set['tpl_title'] ); ?>" style="width:450px" dir="ltr"></td></tr>
+	<tr><th>قالب توضیح محصول</th><td><textarea name="tpl_desc" rows="3" style="width:450px" dir="ltr"><?php echo esc_textarea( $set['tpl_desc'] ); ?></textarea><p class="description">جای‌نماها: {sku} {brand} {section} {size}</p></td></tr>
+	</table>
+	<button name="tk_save_settings" value="1" class="button button-primary">ذخیره تنظیمات</button>
+	</form></div>
+	<?php
+}
