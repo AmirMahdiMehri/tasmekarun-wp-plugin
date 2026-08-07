@@ -1,0 +1,25 @@
+.tk-shop{max-width:1100px;margin:0 auto;padding:24px 16px 60px}
+.tk-crumbs{font-size:13px;margin-bottom:18px;color:#666}
+.tk-crumbs a{color:#0e3a40;text-decoration:none}
+.tk-shop h1{font-size:26px;margin:0 0 18px}
+.tk-grid{display:flex;flex-wrap:wrap;gap:12px}
+.tk-card{display:flex;flex-direction:column;gap:4px;border:1px solid #ddd;border-radius:8px;padding:14px 16px;min-width:150px;text-decoration:none;color:inherit;background:#fff}
+.tk-card:hover{border-color:#0e3a40;box-shadow:0 2px 8px rgba(0,0,0,.08)}
+.tk-card strong{font-size:16px}
+.tk-card small{color:#777}
+.tk-chips{display:flex;flex-wrap:wrap;gap:8px}
+.tk-chips a{border:1px solid #ddd;border-radius:6px;padding:6px 10px;text-decoration:none;color:#0e3a40;background:#fff;font-size:13px}
+.tk-chips a:hover{border-color:#0e3a40}
+.tk-prod{display:flex;gap:24px;flex-wrap:wrap}
+.tk-prod-img{flex:0 0 260px;max-width:100%}
+.tk-prod-img img{width:100%;border-radius:10px;border:1px solid #ddd}
+.tk-prod-info{flex:1;min-width:260px}
+.tk-price{font-size:22px;font-weight:700;color:#0e3a40;margin:10px 0}
+.tk-cta{display:inline-block;background:#0e3a40;color:#fff;padding:12px 22px;border-radius:8px;text-decoration:none;border:none;cursor:pointer}
+.tk-specs{width:100%;border-collapse:collapse;margin-top:18px;font-size:14px}
+.tk-specs td,.tk-specs th{border:1px solid #e2e2e2;padding:8px 10px;text-align:right}
+.tk-badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:12px}
+.tk-badge.in{background:#e8f5e9;color:#2e7d32}
+.tk-badge.out{background:#fdecea;color:#c62828}
+.tk-jump{margin:14px 0;display:flex;gap:8px;align-items:center}
+.tk-jump input{padding:8px 10px;border:1px solid #ccc;border-radius:6px;width:140px}
