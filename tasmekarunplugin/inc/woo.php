@@ -91,3 +91,11 @@ function tk_woo_check_stock() {
 		}
 	}
 }
+
+/* حذف درخواست اضافی cart-fragments از صفحه‌های غیر فروشگاهی */
+add_action( 'wp_enqueue_scripts', 'tk_no_cart_fragments', 20 );
+function tk_no_cart_fragments() {
+	if ( function_exists( 'is_cart' ) && ! is_cart() && ! is_checkout() ) {
+		wp_dequeue_script( 'wc-cart-fragments' );
+	}
+}
