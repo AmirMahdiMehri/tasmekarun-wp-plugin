@@ -96,7 +96,17 @@ if ( 'cats' === $type ) {
 			foreach ( array( 3, 4, 5, 6, 7, 8, 9, 10, 12 ) as $rb ) { echo '<option value="' . $rb . '" ' . selected( $ribs, $rb, false ) . '>' . $rb . '</option>'; }
 			echo '</select></label></form>';
 		}
-		echo '<a class="tk-cta" href="tel:' . esc_attr( $phone ) . '">' . ( $stock ? 'موجود — تماس برای خرید' : 'برای خرید تماس بگیرید' ) . ': ' . esc_html( $phone ) . '</a>';
+		if ( $stock && function_exists( 'tk_woo_ensure_base_product' ) ) {
+			$base_id = tk_woo_ensure_base_product( (int) $brand->id, (int) $sec->id );
+			echo '<form method="post" action="?add-to-cart=' . esc_attr( $base_id ) . '" style="display:inline">';
+			echo '<input type="hidden" name="tk_size" value="' . esc_attr( $size ) . '">';
+			if ( null !== $ribs ) { echo '<input type="hidden" name="tk_ribs" value="' . esc_attr( $ribs ) . '">'; }
+			echo '<input type="hidden" name="tk_brand" value="' . esc_attr( $brand->id ) . '">';
+			echo '<input type="hidden" name="tk_section" value="' . esc_attr( $sec->id ) . '">';
+			echo '<button type="submit" class="tk-cta">افزودن به سبد خرید</button></form>';
+		} else {
+			echo '<a class="tk-cta" href="tel:' . esc_attr( $phone ) . '">' . ( $stock ? 'موجود — تماس برای خرید' : 'برای خرید تماس بگیرید' ) . ': ' . esc_html( $phone ) . '</a>';
+		}
 		echo '</div></div>';
 		echo '<p style="margin-top:18px">' . esc_html( TK_Engine::description( $brand->name_fa, $sec, $bs ) ) . '</p>';
 		$spec = TK_Engine::specs( (int) $sec->id );
