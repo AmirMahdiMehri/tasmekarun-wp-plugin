@@ -36,3 +36,11 @@ function tk_shop_assets() {
 		wp_enqueue_style( 'tk-shop', TK_URL . 'assets/tk-shop.css', array(), TK_VERSION );
 	}
 }
+/* آدرس /shop/ همیشه مال موتور ما (نه برگه فروشگاه ووکامرس) */
+add_filter( 'request', 'tk_force_shop_root', 30 );
+function tk_force_shop_root( $qv ) {
+	if ( isset( $qv['pagename'] ) && 'shop' === $qv['pagename'] && ! isset( $qv['tk_shop'] ) ) {
+		return array( 'tk_shop' => 'cats' );
+	}
+	return $qv;
+}
