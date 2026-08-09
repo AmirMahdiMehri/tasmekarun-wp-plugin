@@ -115,9 +115,9 @@ function tk_page_stock() {
 	</tr>
 	<?php endforeach; ?>
 	</table>
-	<p>
-		<button name="tk_save_stock_edits" value="1" class="button button-primary">ذخیره تغییرات</button>
-		<button name="tk_del_all_stock" value="1" class="button" onclick="return confirm('همه موجودی حذف شود؟ بعد می‌توانید اکسل جدید را ایمپورت کنید.');">حذف کل موجودی</button>
+	<p style="position:fixed;bottom:18px;left:18px;z-index:99999;margin:0;display:flex;gap:8px">
+		<button name="tk_save_stock_edits" value="1" class="button button-primary" style="box-shadow:0 4px 14px rgba(0,0,0,.3)">ذخیره تغییرات</button>
+		<button name="tk_del_all_stock" value="1" class="button" style="box-shadow:0 4px 14px rgba(0,0,0,.3)" onclick="return confirm('همه موجودی حذف شود؟ بعد می‌توانید اکسل جدید را ایمپورت کنید.');">حذف کل موجودی</button>
 	</p>
 	</form>
 	</div>

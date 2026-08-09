@@ -47,7 +47,7 @@ if ( '' === $term ) {
 			$seen[ $key ] = 1;
 			$price = TK_Engine::price( (int) $r->bid, array( 'section' => $r->sslug, 'size' => (int) $r->size, 'ribs' => null ) );
 			$url = home_url( '/shop/' . $r->cslug . '/' . $r->sslug . '/' . $r->bslug . '/' . $r->size . '/' );
-			echo '<a class="tk-card" href="' . esc_url( $url ) . '"><strong>' . esc_html( $r->sslug . $r->size ) . '</strong><small>' . esc_html( $r->bname ) . '</small><small>' . ( null === $price ? 'تماس بگیرید' : esc_html( TK_Engine::fmt( $price ) ) ) . ( (int) $r->qty > 0 ? ' — موجود در انبار' : '' ) . '</small></a>';
+			echo '<a class="tk-card" href="' . esc_url( $url ) . '"><strong>' . esc_html( $r->sslug . $r->size ) . '</strong><small>' . esc_html( $r->bname ) . '</small>' . ( null === $price ? '' : '<small>' . esc_html( TK_Engine::fmt( $price ) ) . '</small>' ) . '</a>';
 		}
 		foreach ( $brand_rows as $br ) {
 			$key = $br->bslug . '-' . $br->sslug . '-' . $parsed['size'];
@@ -55,7 +55,7 @@ if ( '' === $term ) {
 			$seen[ $key ] = 1;
 			$price = TK_Engine::price( (int) $br->bid, array( 'section' => $br->sslug, 'size' => (int) $parsed['size'], 'ribs' => isset( $parsed['ribs'] ) ? $parsed['ribs'] : null ) );
 			$url = home_url( '/shop/' . $br->cslug . '/' . $br->sslug . '/' . $br->bslug . '/' . (int) $parsed['size'] . '/' );
-			echo '<a class="tk-card" href="' . esc_url( $url ) . '"><strong>' . esc_html( $br->sslug . $parsed['size'] ) . '</strong><small>' . esc_html( $br->bname ) . '</small><small>' . ( null === $price ? 'تماس بگیرید' : esc_html( TK_Engine::fmt( $price ) ) ) . '</small></a>';
+			echo '<a class="tk-card" href="' . esc_url( $url ) . '"><strong>' . esc_html( $br->sslug . $parsed['size'] ) . '</strong><small>' . esc_html( $br->bname ) . '</small>' . ( null === $price ? '' : '<small>' . esc_html( TK_Engine::fmt( $price ) ) . '</small>' ) . '</a>';
 		}
 		echo '</div>';
 	}
