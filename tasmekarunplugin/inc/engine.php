@@ -19,6 +19,18 @@ class TK_Engine {
 		if ( preg_match( '/^TIME(\d+)$/', $sku, $m ) ) {
 			return array( 'section' => 'TIME', 'size' => (int) $m[1], 'ribs' => null );
 		}
+				// باندی: 2RAX68 / 3RB127 / 4R3V1250 → (تعداد باند)(سری R)(سایز)
+		if ( preg_match( '/^(\d+)(R.+)$/', $sku, $m ) ) {
+			$rest = $m[2];
+			foreach ( self::sections() as $s ) {
+				if ( 0 === strpos( $rest, strtoupper( $s->slug ) ) ) {
+					$num = substr( $rest, strlen( $s->slug ) );
+					if ( preg_match( '/^\d+(\.\d+)?$/', $num ) ) {
+						return array( 'section' => $s->slug, 'size' => (int) $num, 'ribs' => (int) $m[1] );
+					}
+				}
+			}
+		}
 		foreach ( self::sections() as $s ) {
 			if ( 0 === strpos( $sku, strtoupper( $s->slug ) ) ) {
 				$rest = substr( $sku, strlen( $s->slug ) );

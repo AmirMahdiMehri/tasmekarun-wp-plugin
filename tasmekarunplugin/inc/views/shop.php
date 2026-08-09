@@ -80,7 +80,7 @@ if ( 'cats' === $type ) {
 	$img = TK_Engine::series_image_url( $brand->id, (int) $sec->id );
 	$set = get_option( 'tk_settings', array() );
 	$phone = isset( $set['phone'] ) ? $set['phone'] : '';
-	$sku = ( $ribs ? $ribs . 'PK' : $sec->slug ) . $size;
+	$sku = ( $ribs ? $ribs . $sec->slug : $sec->slug ) . $size;
 
 	echo '<h1>تسمه ' . esc_html( $sku ) . ' برند ' . esc_html( $brand->name_fa ) . '</h1>';
 	if ( ! $allowed ) {
@@ -89,7 +89,6 @@ if ( 'cats' === $type ) {
 		echo '<div class="tk-prod">';
 		echo '<div class="tk-prod-img">' . ( $img ? '<img src="' . esc_url( $img ) . '" alt="' . esc_attr( $sku ) . '">' : '<div style="border:1px dashed #bbb;border-radius:10px;height:200px;display:flex;align-items:center;justify-content:center;color:#999">تصویر سری ' . esc_html( $sec->slug ) . '</div>' ) . '</div>';
 		echo '<div class="tk-prod-info">';
-		if ( $stock ) { echo '<span class="tk-badge in">موجود در انبار</span>'; }
 		echo '<div class="tk-price">' . ( null === $price ? 'برای استعلام قیمت تماس بگیرید' : esc_html( TK_Engine::fmt( $price ) ) ) . '</div>';
 		if ( $ribs || 'RIBS_LEN_COEF' === $fkey ) {
 			echo '<form method="get" class="tk-jump"><label>تعداد شیار: <select name="ribs" onchange="this.form.submit()">';

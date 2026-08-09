@@ -76,7 +76,7 @@ function tk_woo_item_data( $other, $item ) {
 	if ( empty( $item['tk_section'] ) ) { return $other; }
 	$sec = TK_Engine::section_by_id( (int) $item['tk_section'] );
 	if ( ! $sec ) { return $other; }
-	$sku = ( $item['tk_ribs'] ? $item['tk_ribs'] . 'PK' : $sec->slug ) . $item['tk_size'];
+	$sku = ( $item['tk_ribs'] ? $item['tk_ribs'] . $sec->slug : $sec->slug ) . $item['tk_size'];
 	$other[] = array( 'name' => 'تسمه', 'value' => $sku . ' — ' . tk_woo_brand_name( $item['tk_brand'] ) );
 	return $other;
 }

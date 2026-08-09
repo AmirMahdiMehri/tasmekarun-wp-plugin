@@ -44,3 +44,14 @@ function tk_force_shop_root( $qv ) {
 	}
 	return $qv;
 }
+/* تضمین نمایش ویو خودمان برای /shop/ حتی اگر ووکامرس صفحه را تصاحب کند */
+add_filter( 'template_include', 'tk_shop_root_fallback', 99 );
+function tk_shop_root_fallback( $tpl ) {
+	if ( get_query_var( 'tk_shop' ) ) { return $tpl; }
+	$path = trim( (string) wp_parse_url( $_SERVER['REQUEST_URI'], PHP_URL_PATH ), '/' );
+	if ( 'shop' === $path ) {
+		set_query_var( 'tk_shop', 'cats' );
+		return TK_PATH . 'inc/views/shop.php';
+	}
+	return $tpl;
+}
