@@ -18,8 +18,8 @@ function tk_shop_qvars( $vars ) {
 
 add_action( 'init', 'tk_shop_flush_once', 20 );
 function tk_shop_flush_once() {
-	if ( get_option( 'tk_shop_rules_v' ) !== '1' ) {
-		update_option( 'tk_shop_rules_v', '1' );
+	if ( get_option( 'tk_shop_rules_v' ) !== TK_VERSION ) {
+		update_option( 'tk_shop_rules_v', TK_VERSION );
 		flush_rewrite_rules();
 	}
 }
