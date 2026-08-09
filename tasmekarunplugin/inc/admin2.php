@@ -38,6 +38,16 @@ function tk_page_stock() {
 			$rep  = tk_run_import( $rows ? $rows : array(), (array) $_POST['map'] );
 			set_transient( 'tk_import_report', $rep, HOUR_IN_SECONDS );
 			$step = 'report';
+		} elseif ( isset( $_POST['tk_save_stock_edits'] ) ) {
+			$now = current_time( 'mysql' );
+			foreach ( (array) $_POST['qty'] as $id => $qv ) {
+				$loc = isset( $_POST['location'][ $id ] ) ? sanitize_text_field( $_POST['location'][ $id ] ) : '';
+				$wpdb->update( "{$p}tk_stock", array( 'qty' => (int) $qv, 'location' => $loc, 'updated_at' => $now ), array( 'id' => (int) $id ) );
+			}
+		} elseif ( isset( $_POST['tk_del_stock'] ) ) {
+			$wpdb->query( $wpdb->prepare( "DELETE FROM {$p}tk_stock WHERE id=%d", (int) $_POST['tk_del_stock'] ) );
+		} elseif ( isset( $_POST['tk_del_all_stock'] ) ) {
+			$wpdb->query( "DELETE FROM {$p}tk_stock" );
 		}
 	}
 	?>
@@ -90,9 +100,26 @@ function tk_page_stock() {
 	$sql .= ' ORDER BY st.updated_at DESC LIMIT 300';
 	$st = $wpdb->get_results( $sql );
 	?>
-	<table class="widefat striped" style="max-width:950px"><tr><th>مدل</th><th>برند</th><th>بخش</th><th>سایز</th><th>تعداد</th><th>موقعیت</th></tr>
-	<?php foreach ( $st as $r ) : ?><tr><td><?php echo esc_html( $r->sku_raw ); ?></td><td><?php echo esc_html( $r->bname ); ?></td><td><?php echo esc_html( $r->sslug ); ?></td><td><?php echo (int) $r->size; ?></td><td><?php echo (int) $r->qty; ?></td><td><?php echo esc_html( $r->location ); ?></td></tr><?php endforeach; ?>
+	<form method="post">
+	<?php wp_nonce_field( 'tk_act', 'tk_nonce' ); ?>
+	<table class="widefat striped" style="max-width:1100px"><tr><th>مدل</th><th>برند</th><th>بخش</th><th>سایز</th><th>تعداد</th><th>موقعیت</th><th></th></tr>
+	<?php foreach ( $st as $r ) : ?>
+	<tr>
+		<td><?php echo esc_html( $r->sku_raw ); ?></td>
+		<td><?php echo esc_html( $r->bname ); ?></td>
+		<td><?php echo esc_html( $r->sslug ); ?></td>
+		<td><?php echo (int) $r->size; ?></td>
+		<td><input type="number" name="qty[<?php echo $r->id; ?>]" value="<?php echo (int) $r->qty; ?>" style="width:80px"></td>
+		<td><input type="text" name="location[<?php echo $r->id; ?>]" value="<?php echo esc_attr( $r->location ); ?>" style="width:110px" dir="ltr"></td>
+		<td><button name="tk_del_stock" value="<?php echo $r->id; ?>" class="button button-small" onclick="return confirm('این ردیف حذف شود؟');">حذف</button></td>
+	</tr>
+	<?php endforeach; ?>
 	</table>
+	<p>
+		<button name="tk_save_stock_edits" value="1" class="button button-primary">ذخیره تغییرات</button>
+		<button name="tk_del_all_stock" value="1" class="button" onclick="return confirm('همه موجودی حذف شود؟ بعد می‌توانید اکسل جدید را ایمپورت کنید.');">حذف کل موجودی</button>
+	</p>
+	</form>
 	</div>
 	<?php
 }

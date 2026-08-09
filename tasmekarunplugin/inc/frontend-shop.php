@@ -32,7 +32,7 @@ function tk_shop_template( $tpl ) {
 
 add_action( 'wp_enqueue_scripts', 'tk_shop_assets' );
 function tk_shop_assets() {
-	if ( get_query_var( 'tk_shop' ) ) {
+	if ( get_query_var( 'tk_shop' ) || is_search() ) {
 		wp_enqueue_style( 'tk-shop', TK_URL . 'assets/tk-shop.css', array(), TK_VERSION );
 	}
 }
@@ -52,6 +52,14 @@ function tk_shop_root_fallback( $tpl ) {
 	if ( 'shop' === $path ) {
 		set_query_var( 'tk_shop', 'cats' );
 		return TK_PATH . 'inc/views/shop.php';
+	}
+	return $tpl;
+}
+/* سرچ سایت = نتایج کاتالوگ مجازی */
+add_filter( 'template_include', 'tk_search_template', 99 );
+function tk_search_template( $tpl ) {
+	if ( ! is_admin() && is_search() ) {
+		return TK_PATH . 'inc/views/search.php';
 	}
 	return $tpl;
 }
