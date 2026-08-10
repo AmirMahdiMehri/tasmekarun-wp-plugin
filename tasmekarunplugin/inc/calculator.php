@@ -9,7 +9,7 @@ function tk_calc_assets() {
 	}
 }
 
-/* ---------- ناوبری بین سه صفحه ---------- */
+/* ---------- ناوبری و آدرس صفحات ---------- */
 function tk_page_url_by_shortcode( $sc ) {
 	global $wpdb;
 	$id = $wpdb->get_var( $wpdb->prepare( "SELECT ID FROM {$wpdb->prefix}posts WHERE post_status='publish' AND post_type='page' AND post_content LIKE %s LIMIT 1", '%' . $wpdb->esc_like( $sc ) . '%' ) );
@@ -51,7 +51,6 @@ function tk_parse_tokens( $tokens ) {
 	return null;
 }
 
-/** خط: مدل + برند + تعداد — مثل a22 tiger 12 یا 6pk1665 2 یا 9.5 2125 falkan 10 */
 function tk_parse_line( $line ) {
 	$line = trim( (string) $line );
 	if ( '' === $line ) { return array( 'ok' => false, 'empty' => true ); }
@@ -86,51 +85,44 @@ function tk_parse_line( $line ) {
 	return array( 'ok' => true, 'sku' => $sku, 'brand' => $brand->name_fa, 'coef' => $coef, 'unit' => $price, 'qty' => $qty, 'total' => $price * $qty );
 }
 
-/* ---------- محاسبه‌گر ---------- */
+/* ---------- محاسبه‌گر: یک فیلد واحد ---------- */
 add_shortcode( 'tk_calculator', 'tk_render_calculator' );
 function tk_render_calculator() {
-	$brands = tk_all_brands();
 	$pf_url = tk_page_url_by_shortcode( '[tk_proforma]' );
 	ob_start();
 	?>
 	<div class="tk-shop" dir="rtl">
 	<h1>محاسبه‌گر قیمت تسمه</h1>
 	<?php tk_tools_nav(); ?>
-	<div style="display:flex;gap:8px;flex-wrap:wrap">
-		<input id="tk-c-sku" placeholder="مدل: a25 یا 6pk1665 یا 9.5 2125" style="padding:10px;min-width:240px">
-		<input id="tk-c-brand" list="tk-brands-list" placeholder="برند: tiger یا تایگر" style="padding:10px;min-width:180px">
-		<datalist id="tk-brands-list">
-			<?php foreach ( $brands as $b ) { echo '<option value="' . esc_attr( $b->name_fa ) . '">' . esc_html( $b->name_en ) . '</option>'; } ?>
-		</datalist>
-	</div>
+	<input id="tk-c-line" style="padding:12px;width:100%;max-width:560px"
+		placeholder="مدل و سایز تسمه (چسبیده) + فاصله + برند + فاصله + تعداد — مثال: a25 تایگر">
 	<div id="tk-c-result" style="margin-top:18px"></div>
 	</div>
 	<script>
 	(function(){
 		var AJAX = '<?php echo esc_url( admin_url( 'admin-ajax.php' ) ); ?>';
 		var PF = '<?php echo esc_url( $pf_url ); ?>';
-		var sku = document.getElementById('tk-c-sku'), br = document.getElementById('tk-c-brand'), box = document.getElementById('tk-c-result'), t = null;
+		var line = document.getElementById('tk-c-line'), box = document.getElementById('tk-c-result'), t = null;
 		function fmt(n){ return Number(n).toLocaleString('fa-IR'); }
 		function run(){
-			if ( ! sku.value.trim() ) { box.innerHTML = ''; return; }
-			var line = sku.value.trim() + ' ' + br.value.trim();
-			var fd = new FormData(); fd.append('action','tk_calc'); fd.append('lines[]', line);
+			var v = line.value.trim();
+			if ( ! v ) { box.innerHTML = ''; return; }
+			var fd = new FormData(); fd.append('action','tk_calc'); fd.append('lines[]', v);
 			fetch(AJAX, {method:'POST', body:fd}).then(function(r){return r.json();}).then(function(res){
 				var it = res[0];
 				if ( ! it || it.empty ) { box.innerHTML = ''; return; }
 				if ( ! it.ok ) { box.innerHTML = '<div style="border:1px solid #f3c1c1;background:#fdecea;color:#b32d2e;border-radius:10px;padding:12px 16px">' + it.msg + '</div>'; return; }
-				box.innerHTML = '<div style="border:1px solid #ddd;border-radius:10px;padding:16px;background:#fff"><strong>تسمه ' + it.sku + ' — ' + it.brand + '</strong><div style="margin:8px 0">ضریب واحد: ' + fmt(it.coef) + ' | قیمت: <strong>' + fmt(it.unit) + ' ریال</strong></div><a class="tk-cta" href="' + PF + '?lines=' + encodeURIComponent(line) + '">افزودن به پیش‌فاکتور</a></div>';
+				box.innerHTML = '<div style="border:1px solid #ddd;border-radius:10px;padding:16px;background:#fff"><strong>تسمه ' + it.sku + ' — ' + it.brand + '</strong><div style="margin:8px 0">ضریب واحد: ' + fmt(it.coef) + ' | قیمت: <strong>' + fmt(it.unit) + ' ریال</strong></div><a class="tk-cta" href="' + PF + '?lines=' + encodeURIComponent(v) + '">افزودن به پیش‌فاکتور</a></div>';
 			});
 		}
-		sku.addEventListener('input', function(){ clearTimeout(t); t = setTimeout(run, 250); });
-		br.addEventListener('input', function(){ clearTimeout(t); t = setTimeout(run, 250); });
+		line.addEventListener('input', function(){ clearTimeout(t); t = setTimeout(run, 250); });
 	})();
 	</script>
 	<?php
 	return ob_get_clean();
 }
 
-/* ---------- پیش‌فاکتور متنی زنده ---------- */
+/* ---------- پیش‌فاکتور: فیلد و جدول کنار هم ---------- */
 add_shortcode( 'tk_proforma', 'tk_render_proforma' );
 function tk_render_proforma() {
 	ob_start();
@@ -138,14 +130,18 @@ function tk_render_proforma() {
 	<div class="tk-shop" id="tk-pf" dir="rtl">
 	<h1>پیش‌فاکتور — تسمه کارون</h1>
 	<?php tk_tools_nav(); ?>
-	<p><small>هر قلم در یک خط: <code dir="ltr">مدل برند تعداد</code> — مثال: <code dir="ltr">a22 tiger 12</code> — اینتر یعنی خط بعد</small></p>
-	<textarea id="tk-pf-input" rows="8" style="width:100%;padding:12px;font-family:inherit" placeholder="a22 tiger 12&#10;a47 راینو 15&#10;b47 dongil 15"></textarea>
-	<p style="margin-top:10px">
-		<button class="tk-cta" type="button" id="tk-pf-calc">محاسبه پیش‌فاکتور</button>
-		<button class="button" type="button" onclick="window.print()">چاپ</button>
-	</p>
-	<div id="tk-pf-table" style="margin-top:18px"></div>
-	<div id="tk-pf-total" style="margin-top:12px;font-size:20px;font-weight:700;color:#0e3a40"></div>
+	<div style="display:flex;gap:18px;flex-wrap:wrap;align-items:flex-start">
+		<div style="flex:0 1 46%;min-width:280px">
+			<textarea id="tk-pf-input" rows="4" style="width:100%;padding:12px;font-family:inherit;min-height:9.5em;box-sizing:border-box"
+			placeholder="مدل و سایز تسمه (چسبیده) + فاصله + برند + فاصله + تعداد&#10;a22 tiger 12&#10;a47 راینو 15&#10;b47 dongil 15"></textarea>
+			<div id="tk-pf-total" style="margin-top:12px;font-size:20px;font-weight:700;color:#0e3a40"></div>
+			<p style="margin-top:10px">
+				<button class="tk-cta" type="button" id="tk-pf-calc">محاسبه پیش‌فاکتور</button>
+				<button class="button" type="button" onclick="window.print()">چاپ</button>
+			</p>
+		</div>
+		<div id="tk-pf-table" style="flex:1 1 46%;min-width:300px"></div>
+	</div>
 	</div>
 	<style>@media print{body *{visibility:hidden}#tk-pf,#tk-pf *{visibility:visible}#tk-pf{position:absolute;inset:0}}</style>
 	<script>
@@ -153,7 +149,9 @@ function tk_render_proforma() {
 		var AJAX = '<?php echo esc_url( admin_url( 'admin-ajax.php' ) ); ?>';
 		var ta = document.getElementById('tk-pf-input'), tbl = document.getElementById('tk-pf-table'), tot = document.getElementById('tk-pf-total'), t = null;
 		function fmt(n){ return Number(n).toLocaleString('fa-IR'); }
+		function autosize(){ ta.style.height = 'auto'; ta.style.height = Math.max(ta.scrollHeight, 152) + 'px'; }
 		function run(){
+			autosize();
 			var lines = ta.value.split('\n').map(function(s){return s.trim();}).filter(function(s){return s.length;});
 			if ( ! lines.length ) { tbl.innerHTML = ''; tot.textContent = ''; return; }
 			var fd = new FormData(); fd.append('action','tk_calc');
@@ -179,14 +177,14 @@ function tk_render_proforma() {
 		var q = new URLSearchParams(location.search);
 		var add = q.get('lines');
 		if ( add ) { ta.value = (ta.value ? ta.value + '\n' : '') + add; }
-		if ( ta.value.trim() ) { run(); }
+		if ( ta.value.trim() ) { run(); } else { autosize(); }
 	})();
 	</script>
 	<?php
 	return ob_get_clean();
 }
 
-/* ---------- لیست قیمت (ضریب‌های به‌روز برندها) ---------- */
+/* ---------- لیست قیمت: کشویی per برند + سرچ برند+سری ---------- */
 add_shortcode( 'tk_pricelist', 'tk_render_pricelist' );
 function tk_render_pricelist() {
 	global $wpdb; $p = $wpdb->prefix;
@@ -205,35 +203,48 @@ function tk_render_pricelist() {
 	<div class="tk-shop" dir="rtl">
 	<h1>لیست قیمت به‌روز</h1>
 	<?php tk_tools_nav(); ?>
-	<input id="tk-pl-search" placeholder="جستجوی برند (فارسی/انگلیسی)…" style="padding:10px;min-width:240px;margin-bottom:12px">
-	<div style="max-height:70vh;overflow:auto;border:1px solid #ddd;border-radius:10px;background:#fff">
-	<table class="tk-specs" id="tk-pl-table">
-	<tr><th>برند</th><th>سری</th><th>ضریب (ریال)</th></tr>
+	<input id="tk-pl-search" placeholder="جستجوی برند + سری — مثال: تایگر a" style="padding:10px;min-width:260px;margin-bottom:12px">
+	<div style="max-height:70vh;overflow:auto">
 	<?php
 	foreach ( $brands as $b ) {
 		$pid = (int) $wpdb->get_var( $wpdb->prepare( "SELECT default_preset_id FROM {$p}tk_brands WHERE id=%d", $b->id ) );
+		$rows_html = '';
 		foreach ( $sections as $s ) {
 			$coef = null;
 			if ( isset( $ov[ $b->id ][ $s->id ] ) ) { $coef = $ov[ $b->id ][ $s->id ]; }
 			elseif ( $pid && isset( $pm[ $pid ][ $s->id ] ) ) { $coef = $pm[ $pid ][ $s->id ]; }
 			elseif ( isset( $lg[ $b->id ][ $s->id ] ) ) { $coef = $lg[ $b->id ][ $s->id ]; }
 			if ( null === $coef || $coef <= 0 ) { continue; }
-			echo '<tr data-b="' . esc_attr( mb_strtolower( $b->name_fa ) . '|' . strtolower( $b->name_en ) ) . '"><td>' . esc_html( $b->name_fa ) . ' (' . esc_html( $b->name_en ) . ')</td><td>' . esc_html( $s->slug ) . '</td><td>' . esc_html( number_format_i18n( $coef ) ) . '</td></tr>';
+			$rows_html .= '<tr data-s="' . esc_attr( strtolower( $s->slug ) ) . '"><td>' . esc_html( $s->slug ) . '</td><td>' . esc_html( number_format_i18n( $coef ) ) . '</td></tr>';
 		}
+		if ( ! $rows_html ) { continue; }
+		echo '<details class="tk-pl-brand" data-b="' . esc_attr( mb_strtolower( $b->name_fa ) . '|' . strtolower( $b->name_en ) ) . '" style="margin-bottom:6px">';
+		echo '<summary style="padding:10px 14px;cursor:pointer;background:#fff;border:1px solid #ddd;border-radius:8px;list-style:none">' . esc_html( $b->name_fa ) . ' (' . esc_html( $b->name_en ) . ')</summary>';
+		echo '<table class="tk-specs"><tr><th>سری</th><th>ضریب (ریال)</th></tr>' . $rows_html . '</table></details>';
 	}
 	?>
-	</table>
 	</div>
 	</div>
 	<script>
 	(function(){
 		var s = document.getElementById('tk-pl-search');
-		s.addEventListener('input', function(){
+		function apply(){
 			var q = s.value.trim().toLowerCase();
-			document.querySelectorAll('#tk-pl-table tr[data-b]').forEach(function(tr){
-				tr.style.display = ( ! q || tr.getAttribute('data-b').indexOf(q) !== -1 ) ? '' : 'none';
+			var tokens = q ? q.split(/\s+/) : [];
+			document.querySelectorAll('.tk-pl-brand').forEach(function(d){
+				var b = d.getAttribute('data-b');
+				var any = false;
+				d.querySelectorAll('tr[data-s]').forEach(function(tr){
+					var slug = tr.getAttribute('data-s');
+					var vis = tokens.every(function(t){ return b.indexOf(t) !== -1 || slug.indexOf(t) !== -1; });
+					tr.style.display = vis ? '' : 'none';
+					if ( vis ) { any = true; }
+				});
+				d.style.display = any ? '' : 'none';
+				if ( q && any ) { d.open = true; }
 			});
-		});
+		}
+		s.addEventListener('input', apply);
 	})();
 	</script>
 	<?php
