@@ -23,13 +23,10 @@ function tk_tools_nav() {
 	echo '</nav>';
 }
 
-/* داده ضریب‌ها برای محاسبه آنی سمت مرورگر (ضریب‌ها طبق تصمیم مالک عمومی‌اند) */
 function tk_client_data() {
 	global $wpdb; $p = $wpdb->prefix;
 	$brands = $wpdb->get_results( "SELECT id, name_fa, name_en, default_preset_id FROM {$p}tk_brands WHERE active=1" );
 	$sections = $wpdb->get_results( "SELECT id, slug, formula_key, min_charge FROM {$p}tk_sections WHERE active=1" );
-	$formulas = array();
-	foreach ( $wpdb->get_results( "SELECT fkey, expr FROM {$p}tk_formulas" ) as $f ) { $formulas[ $f->fkey ] = $f->expr; }
 	$pm = array();
 	foreach ( $wpdb->get_results( "SELECT preset_id, section_id, coef FROM {$p}tk_preset_coefs" ) as $r ) { $pm[ $r->preset_id ][ $r->section_id ] = (float) $r->coef; }
 	$lg = array();
@@ -48,7 +45,7 @@ function tk_client_data() {
 		}
 		$coef[ (int) $b->id ] = $m;
 	}
-	return array( 'brands' => $brands, 'sections' => $sections, 'formulas' => $formulas, 'coef' => $coef );
+	return array( 'brands' => $brands, 'sections' => $sections, 'coef' => $coef );
 }
 
 function tk_brands_datalist() {
@@ -59,99 +56,70 @@ function tk_brands_datalist() {
 	echo '</datalist>';
 }
 
-/* ---------- موتور JS مشترک ---------- */
+/* ---------- موتور JS (ساده و پایدار، بدون eval عمومی) ---------- */
 function tk_calc_js_core() {
 	?>
 	<script>
 	function tkInit(TK){
 		var SECS = TK.sections.slice().sort(function(a,b){ return b.slug.length - a.slug.length; });
-		var bySlug = {}; SECS.forEach(function(s){ bySlug[s.slug.toUpperCase()] = s; });
-		function fmt(n){ return Number(n).toLocaleString('fa-IR'); }
-		function findBrand(t){
+		function fmt(n){ return Number(n||0).toLocaleString('fa-IR'); }
+		function splitBrand(t){
 			if ( ! t ) return null;
-			var lt = t.toLowerCase();
+			var lt = String(t).toLowerCase();
 			for ( var i=0;i<TK.brands.length;i++ ){
-				var b = TK.brands[i];
-				if ( b.name_en.toLowerCase() === lt || b.name_fa === t ) return b;
-				if ( lt.length > 2 && ( b.name_en.toLowerCase().indexOf(lt) === 0 || b.name_fa.indexOf(t) === 0 ) ) return b;
+				var b = TK.brands[i], en = String(b.name_en||'').toLowerCase(), fa = String(b.name_fa||'');
+				if ( en === lt || fa === t ) return { b:b, q:0 };
+				if ( en && lt.indexOf(en) === 0 ){ var r = lt.slice(en.length); if ( /^\d+$/.test(r) ) return { b:b, q:+r }; }
+				if ( en && lt.length > 2 && en.indexOf(lt) === 0 ) return { b:b, q:0 };
+				if ( fa && t.length > 1 && fa.indexOf(t) === 0 ) return { b:b, q:0 };
 			}
 			return null;
 		}
 		function parseSku(raw){
-			var s = (raw||'').toUpperCase().replace(/\s+/g,'');
+			var s = String(raw||'').toUpperCase().replace(/\s+/g,'');
 			if ( ! s ) return null;
 			var m = s.match(/^(\d+)PK(\d+)$/); if ( m ) return { section:'PK', size:+m[2], ribs:+m[1] };
-			m = s.match(/^TIME(\d+)$/); if ( m ) return { section:'TIME', size:+m[1], ribs:null };
-			m = s.match(/^(\d+)(R.+)$/);
+			m = s.match(/^TIME(\d+)$/); if ( m ) return { section:'TIME', size:+m[1], ribs:0 };
+			m = s.match(/^(\d+)(R[A-Z0-9].*)$/);
 			if ( m ) {
 				var rest = m[2];
 				for ( var i=0;i<SECS.length;i++ ){
 					var sl = SECS[i].slug.toUpperCase();
 					if ( rest.indexOf(sl) === 0 ){
 						var num = rest.slice(sl.length);
-						if ( /^\d+(\.\d+)?$/.test(num) ) return { section: SECS[i].slug, size:+num, ribs:+m[1] };
+						if ( /^\d+(\.\d+)?$/.test(num) ) return { section:SECS[i].slug, size:+num, ribs:+m[1] };
 					}
 				}
 			}
 			for ( var j=0;j<SECS.length;j++ ){
 				var slg = SECS[j].slug.toUpperCase();
-				if ( s.indexOf(slg) === 0 ){
-					var r = s.slice(slg.length);
-					if ( /^\d+(\.\d+)?$/.test(r) ) return { section: SECS[j].slug, size:+r, ribs:null };
+				if ( slg && s.indexOf(slg) === 0 ){
+					var rr = s.slice(slg.length);
+					if ( /^\d+(\.\d+)?$/.test(rr) ) return { section:SECS[j].slug, size:+rr, ribs:0 };
 				}
 			}
 			return null;
 		}
-		function evalExpr(expr, vars){
-			var toks=[], i=0, n=expr.length, bad=false;
-			while ( i<n ){
-				var c = expr[i];
-				if ( c===' '||c==='\t' ){ i++; continue; }
-				if ( /[0-9.]/.test(c) ){ var j=i; while(j<n&&/[0-9.]/.test(expr[j]))j++; toks.push(['n',parseFloat(expr.slice(i,j))]); i=j; continue; }
-				if ( /[A-Za-z_]/.test(c) ){ var k=i; while(k<n&&/[A-Za-z_]/.test(expr[k]))k++; var nm=expr.slice(i,k).toUpperCase(); if(!(nm in vars)){bad=true;break;} toks.push(['n',vars[nm]]); i=k; continue; }
-				if ( '+-*/()'.indexOf(c)!==-1 ){ toks.push(['o',c]); i++; continue; }
-				bad=true; break;
-			}
-			if ( bad ) return null;
-			var out=[], ops=[], prec={'+':1,'-':1,'*':2,'/':2};
-			for ( var t=0;t<toks.length;t++ ){
-				var tk=toks[t];
-				if ( tk[0]==='n' ){ out.push(tk); continue; }
-				var o=tk[1];
-				if ( o==='(' ){ ops.push(o); continue; }
-				if ( o===')' ){ while(ops.length&&ops[ops.length-1]!=='(')out.push(['o',ops.pop()]); if(!ops.length)return null; ops.pop(); continue; }
-				while(ops.length&&ops[ops.length-1]!=='('&&prec[ops[ops.length-1]]>=prec[o])out.push(['o',ops.pop()]);
-				ops.push(o);
-			}
-			while(ops.length){ var o2=ops.pop(); if(o2==='(')return null; out.push(['o',o2]); }
-			var st=[];
-			for ( var x=0;x<out.length;x++ ){
-				var t2=out[x];
-				if ( t2[0]==='n' ){ st.push(t2[1]); continue; }
-				if ( st.length<2 ) return null;
-				var b=st.pop(), a=st.pop();
-				if ( t2[1]==='+' ) st.push(a+b); else if ( t2[1]==='-' ) st.push(a-b); else if ( t2[1]==='*' ) st.push(a*b); else { if(!b) return null; st.push(a/b); }
-			}
-			return st.length===1 ? st[0] : null;
+		function compute(model, brandName, qty){
+			var p = parseSku(model);
+			if ( ! p ) return { ok:false, msg:'مدل نامشخص است' };
+			var sb = splitBrand(brandName);
+			if ( ! sb ) return { ok:false, msg:'برند نامشخص است' };
+			var sec = null;
+			for ( var i=0;i<SECS.length;i++ ) if ( SECS[i].slug === p.section ) sec = SECS[i];
+			if ( ! sec ) return { ok:false, msg:'سری نامشخص است' };
+			var cm = TK.coef[sb.b.id] || {};
+			var coef = cm[sec.id];
+			if ( coef === undefined ) return { ok:false, msg:'ضریب این برند/سری تعریف نشده' };
+			var len = Math.max(p.size, parseInt(sec.min_charge||0,10)||0);
+			var unit = null;
+			if ( sec.formula_key === 'LEN_COEF' ) unit = len * coef;
+			else if ( sec.formula_key === 'RIBS_LEN_COEF' ) unit = p.ribs ? p.ribs * len * coef : null;
+			if ( unit === null ) return { ok:false, msg:'فرمول این سری تعریف نشده؛ تماس بگیرید' };
+			var q = parseInt(qty,10) || 1;
+			return { ok:true, sku:(p.ribs?p.ribs+sec.slug:sec.slug)+p.size, brand:sb.b.name_fa, coef:coef, unit:unit, qty:q, total:unit*q };
 		}
-		function compute(model, brandText, qty){
-			var parsed = parseSku(model);
-			if ( ! parsed ) return { ok:false, msg:'مدل نامشخص' };
-			var brand = findBrand(brandText);
-			if ( ! brand ) return { ok:false, msg:'برند نامشخص' };
-			var sec = bySlug[parsed.section.toUpperCase()];
-			if ( ! sec ) return { ok:false, msg:'سری نامشخص' };
-			var cm = TK.coef[brand.id]; var coef = cm ? cm[sec.id] : undefined;
-			if ( coef === undefined ) return { ok:false, msg:'ضریب تعریف نشده' };
-			var expr = TK.formulas[sec.formula_key];
-			if ( ! expr ) return { ok:false, msg:'فرمول تعریف نشده' };
-			var len = Math.max(parsed.size, (sec.min_charge|0));
-			var unit = evalExpr(expr, { LENGTH:len, RIBS:(parsed.ribs||1), COEF:coef });
-			if ( unit === null ) return { ok:false, msg:'محاسبه نشد' };
-			var q = qty|0 || 1;
-			return { ok:true, sku:(parsed.ribs?parsed.ribs+sec.slug:sec.slug)+parsed.size, brand:brand.name_fa, coef:coef, unit:unit, qty:q, total:unit*q };
-		}
-		return { fmt:fmt, findBrand:findBrand, parseSku:parseSku, compute:compute };
+		return { fmt:fmt, splitBrand:splitBrand, compute:compute };
 	}
 	</script>
 	<?php
@@ -178,25 +146,29 @@ function tk_render_calculator() {
 		var line = document.getElementById('tk-c-line'), box = document.getElementById('tk-c-result');
 		function run(){
 			var v = line.value.trim();
-			if ( ! v ) { box.innerHTML=''; return; }
+			if ( ! v ) { box.innerHTML = ''; return; }
 			var tokens = v.split(/\s+/), qty = 1;
-			if ( tokens.length > 1 && /^\d+$/.test(tokens[tokens.length-1]) ) { qty = +tokens.pop(); }
-			var brandTok = null, idx = -1;
-			for ( var i=0;i<tokens.length;i++ ){ if ( E.findBrand(tokens[i]) ){ brandTok = tokens[i]; idx = i; break; } }
+			if ( tokens.length > 1 && /^\d+$/.test(tokens[tokens.length-1]) ) qty = +tokens.pop();
+			var brandName = '', idx = -1, extraQ = 0;
+			for ( var i=0;i<tokens.length;i++ ){
+				var sb = E.splitBrand(tokens[i]);
+				if ( sb ){ brandName = sb.b.name_fa; extraQ = sb.q; idx = i; break; }
+			}
 			if ( idx > -1 ) tokens.splice(idx,1);
-			var r = E.compute(tokens.join(' '), brandTok || '', qty);
+			if ( extraQ && qty === 1 ) qty = extraQ;
+			var r = E.compute(tokens.join(' '), brandName, qty);
 			if ( ! r.ok ) { box.innerHTML = '<div style="border:1px solid #f3c1c1;background:#fdecea;color:#b32d2e;border-radius:10px;padding:12px 16px">' + r.msg + '</div>'; return; }
 			var extra = r.qty > 1 ? ' | تعداد: ' + E.fmt(r.qty) + ' | <strong>قیمت کل: ' + E.fmt(r.total) + ' ریال</strong>' : '';
 			box.innerHTML = '<div style="border:1px solid #ddd;border-radius:10px;padding:16px;background:#fff"><strong>تسمه ' + r.sku + ' — ' + r.brand + '</strong><div style="margin:8px 0">ضریب واحد: ' + E.fmt(r.coef) + ' | قیمت واحد: ' + E.fmt(r.unit) + ' ریال' + extra + '</div></div>';
 		}
-		line.addEventListener('input', run);
+		line.addEventListener('input', function(){ try { run(); } catch (e) { box.textContent = 'خطا: ' + e.message; } });
 	})();
 	</script>
 	<?php
 	return ob_get_clean();
 }
 
-/* ---------- پیش‌فاکتور: جدول هم‌تراز قابل ویرایش + برند پیشفرض ---------- */
+/* ---------- پیش‌فاکتور ---------- */
 add_shortcode( 'tk_proforma', 'tk_render_proforma' );
 function tk_render_proforma() {
 	$data = wp_json_encode( tk_client_data() );
@@ -216,7 +188,7 @@ function tk_render_proforma() {
 				placeholder="مدل+سایز (چسبیده) + برند (اختیاری) + تعداد — Enter = ثبت خط&#10;مثال: a22 12 یا c90 دانگیل 10">
 			<p style="margin-top:10px">
 				<button class="button" type="button" onclick="window.print()">چاپ</button>
-				<button class="button" type="button" id="tk-pf-clear" onclick="return confirm('کل پیش‌فاکتور پاک شود؟');">پاک کردن</button>
+				<button class="button" type="button" id="tk-pf-clear" type="button">پاک کردن</button>
 			</p>
 			<div id="tk-pf-total" style="margin-top:12px;font-size:20px;font-weight:700;color:#0e3a40"></div>
 		</div>
@@ -236,15 +208,18 @@ function tk_render_proforma() {
 		var line = document.getElementById('tk-pf-line'), defBrand = document.getElementById('tk-pf-brand');
 		var body = document.getElementById('tk-pf-body'), tot = document.getElementById('tk-pf-total');
 		var rows = [];
-
 		function splitLine(l){
 			var tokens = l.split(/\s+/).filter(function(s){return s;});
 			if ( ! tokens.length ) return null;
 			var qty = 1;
-			if ( tokens.length > 1 && /^\d+$/.test(tokens[tokens.length-1]) ) { qty = +tokens.pop(); }
-			var brandTok = '', idx = -1;
-			for ( var i=0;i<tokens.length;i++ ){ if ( E.findBrand(tokens[i]) ){ brandTok = tokens[i]; idx = i; break; } }
+			if ( tokens.length > 1 && /^\d+$/.test(tokens[tokens.length-1]) ) qty = +tokens.pop();
+			var brandTok = '', idx = -1, extraQ = 0;
+			for ( var i=0;i<tokens.length;i++ ){
+				var sb = E.splitBrand(tokens[i]);
+				if ( sb ){ brandTok = tokens[i]; extraQ = sb.q; idx = i; break; }
+			}
 			if ( idx > -1 ) tokens.splice(idx,1);
+			if ( extraQ && qty === 1 ) qty = extraQ;
 			return { model: tokens.join(' '), brand: brandTok, qty: qty };
 		}
 		function addLines(text){
@@ -258,8 +233,8 @@ function tk_render_proforma() {
 			var html = '';
 			rows.forEach(function(r,i){
 				html += '<tr data-i="'+i+'">'
-					+ '<td><input data-col="model" value="'+ (r.model||'').replace(/"/g,'&quot;') +'" style="width:110px"></td>'
-					+ '<td><input data-col="brand" value="'+ (r.brand||'').replace(/"/g,'&quot;') +'" placeholder="برند" style="width:90px"></td>'
+					+ '<td><input data-col="model" value="'+ String(r.model||'').replace(/"/g,'&quot;') +'" style="width:110px"></td>'
+					+ '<td><input data-col="brand" value="'+ String(r.brand||'').replace(/"/g,'&quot;') +'" placeholder="برند" style="width:90px"></td>'
 					+ '<td class="c-coef"></td><td class="c-unit"></td>'
 					+ '<td><input data-col="qty" type="number" min="1" value="'+ (r.qty||1) +'" style="width:60px"></td>'
 					+ '<td class="c-total"></td>'
@@ -283,19 +258,21 @@ function tk_render_proforma() {
 			tot.textContent = 'جمع کل: ' + E.fmt(sum) + ' ریال';
 		}
 		line.addEventListener('keydown', function(e){
-			if ( e.key === 'Enter' ) { e.preventDefault(); addLines(line.value); line.value=''; }
+			if ( e.key === 'Enter' ) { e.preventDefault(); try { addLines(line.value); line.value=''; } catch(err){ tot.textContent = 'خطا: ' + err.message; } }
 		});
 		document.getElementById('tk-pf-clear').addEventListener('click', function(){ rows = []; render(); });
-		defBrand.addEventListener('input', recalcAll);
+		defBrand.addEventListener('input', function(){ try { recalcAll(); } catch(e){} });
 		body.addEventListener('input', function(e){
 			var tr = e.target.closest('tr'); if ( ! tr ) return;
 			var i = +tr.getAttribute('data-i'), col = e.target.getAttribute('data-col');
 			if ( col === 'model' ) rows[i].model = e.target.value;
 			else if ( col === 'brand' ) rows[i].brand = e.target.value;
 			else if ( col === 'qty' ) rows[i].qty = +e.target.value || 1;
-			recalcRow(tr);
-			var sum = 0; body.querySelectorAll('tr').forEach(function(t){ sum += t._total||0; });
-			tot.textContent = 'جمع کل: ' + E.fmt(sum) + ' ریال';
+			try {
+				recalcRow(tr);
+				var sum = 0; body.querySelectorAll('tr').forEach(function(t){ sum += t._total||0; });
+				tot.textContent = 'جمع کل: ' + E.fmt(sum) + ' ریال';
+			} catch(err){ tot.textContent = 'خطا: ' + err.message; }
 		});
 		body.addEventListener('click', function(e){
 			if ( e.target.classList.contains('tk-del') ) {
@@ -303,15 +280,14 @@ function tk_render_proforma() {
 				rows.splice(i,1); render();
 			}
 		});
-		/* جابه‌جایی بین سلول‌ها با فلش‌ها و Enter */
 		body.addEventListener('keydown', function(e){
 			var inp = e.target.closest('input'); if ( ! inp ) return;
 			var tr = inp.closest('tr');
-			var move = function(dir){
+			function move(dir){
 				var target = dir > 0 ? tr.nextElementSibling : tr.previousElementSibling;
 				if ( target ) { var n = target.querySelector('input[data-col="'+inp.getAttribute('data-col')+'"]'); if ( n ) { e.preventDefault(); n.focus(); } }
 				else if ( dir > 0 ) { e.preventDefault(); line.focus(); }
-			};
+			}
 			if ( e.key === 'ArrowDown' ) move(1);
 			else if ( e.key === 'ArrowUp' ) move(-1);
 			else if ( e.key === 'Enter' ) { e.preventDefault(); move(1); }
@@ -322,7 +298,7 @@ function tk_render_proforma() {
 	return ob_get_clean();
 }
 
-/* ---------- لیست قیمت (کشویی، بدون تغییر) ---------- */
+/* ---------- لیست قیمت (بدون تغییر) ---------- */
 add_shortcode( 'tk_pricelist', 'tk_render_pricelist' );
 function tk_render_pricelist() {
 	global $wpdb; $p = $wpdb->prefix;
