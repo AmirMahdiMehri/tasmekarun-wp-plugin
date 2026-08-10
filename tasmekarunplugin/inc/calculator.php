@@ -56,13 +56,14 @@ function tk_brands_datalist() {
 	echo '</datalist>';
 }
 
-/* ---------- موتور JS (ساده و پایدار، بدون eval عمومی) ---------- */
+/* ---------- موتور JS ---------- */
 function tk_calc_js_core() {
 	?>
 	<script>
 	function tkInit(TK){
 		var SECS = TK.sections.slice().sort(function(a,b){ return b.slug.length - a.slug.length; });
 		function fmt(n){ return Number(n||0).toLocaleString('fa-IR'); }
+		function hasFa(s){ return /[\u0600-\u06FF]/.test(s); }
 		function splitBrand(t){
 			if ( ! t ) return null;
 			var lt = String(t).toLowerCase();
@@ -119,7 +120,84 @@ function tk_calc_js_core() {
 			var q = parseInt(qty,10) || 1;
 			return { ok:true, sku:(p.ribs?p.ribs+sec.slug:sec.slug)+p.size, brand:sb.b.name_fa, coef:coef, unit:unit, qty:q, total:unit*q };
 		}
-		return { fmt:fmt, splitBrand:splitBrand, compute:compute };
+		/* پیشنهاد هوشمند برند هنگام تایپ (سریع، سمت مرورگر) */
+		function attachBrandSuggest(inp){
+			var box = null, items = [], hi = -1;
+			function ensure(){
+				if ( box ) return box;
+				box = document.createElement('div');
+				box.style.cssText = 'position:absolute;background:#fff;border:1px solid #ddd;border-radius:8px;z-index:60;max-height:190px;overflow:auto;box-shadow:0 8px 20px rgba(0,0,0,.15);display:none';
+				inp.parentElement.style.position = 'relative';
+				inp.parentElement.appendChild(box);
+				box.addEventListener('mousedown', function(e){
+					var li = e.target.closest('[data-v]'); if ( ! li ) return;
+					e.preventDefault(); pick(li.getAttribute('data-v'));
+				});
+				return box;
+			}
+			function tokenAtCaret(){
+				var v = inp.value, c = inp.selectionStart === null ? v.length : inp.selectionStart;
+				var upto = v.slice(0, c);
+				var m = upto.match(/(\S*)$/);
+				var cur = m ? m[1] : '';
+				var prior = upto.slice(0, upto.length - cur.length).trim().length > 0;
+				return { cur: cur, prior: prior };
+			}
+			function matches(cur){
+				var lc = cur.toLowerCase(), out = [];
+				for ( var i=0;i<TK.brands.length && out.length<6;i++ ){
+					var b = TK.brands[i], en = String(b.name_en||'').toLowerCase(), fa = String(b.name_fa||'');
+					if ( en.indexOf(lc) === 0 || fa.indexOf(cur) === 0 ) out.push(b);
+				}
+				return out;
+			}
+			function paint(){
+				if ( ! box ) return;
+				var html = '';
+				items.forEach(function(b,i){
+					html += '<div data-v="' + (hasFa(items[hi===i?i:0].name_fa) && i===hi ? b.name_fa : (i===hi ? (hasFa(cur()) ? b.name_fa : b.name_en) : (hasFa(cur()) ? b.name_fa : b.name_en))) + '" style="padding:8px 12px;cursor:pointer;' + (i===hi?'background:#e8f0f5;':'') + '">' + b.name_fa + ' <small style="color:#777">(' + b.name_en + ')</small></div>';
+				});
+				box.innerHTML = html;
+			}
+			function cur(){ var t = tokenAtCaret(); return t.cur; }
+			function open(){
+				var t = tokenAtCaret();
+				if ( ! t.prior || ! t.cur || /^\d/.test(t.cur) || ! /[a-zA-Z\u0600-\u06FF]/.test(t.cur) ) { close(); return; }
+				items = matches(t.cur);
+				if ( ! items.length ) { close(); return; }
+				hi = -1;
+				var b = ensure();
+				b.style.top = (inp.offsetTop + inp.offsetHeight + 4) + 'px';
+				b.style.left = inp.offsetLeft + 'px';
+				b.style.width = Math.max(inp.offsetWidth, 200) + 'px';
+				b.style.display = 'block';
+				paint();
+			}
+			function close(){ if ( box ) box.style.display = 'none'; hi = -1; }
+			function isOpen(){ return box && box.style.display === 'block'; }
+			function pick(name){
+				var v = inp.value, c = inp.selectionStart === null ? v.length : inp.selectionStart;
+				var upto = v.slice(0, c), after = v.slice(c);
+				var m = upto.match(/(\S*)$/);
+				var start = m ? c - m[1].length : c;
+				inp.value = v.slice(0, start) + name + ' ' + after;
+				var pos = start + name.length + 1;
+				inp.focus(); inp.setSelectionRange(pos, pos);
+				close();
+				inp.dispatchEvent(new Event('input'));
+			}
+			inp.addEventListener('input', open);
+			inp.addEventListener('keydown', function(e){
+				if ( ! isOpen() ) return;
+				if ( e.key === 'ArrowDown' ){ e.preventDefault(); hi = (hi+1) % items.length; paint(); }
+				else if ( e.key === 'ArrowUp' ){ e.preventDefault(); hi = (hi-1+items.length) % items.length; paint(); }
+				else if ( e.key === 'Tab' ){ e.preventDefault(); pick( items[ hi >= 0 ? hi : 0 ] ? (hasFa(cur()) ? items[hi>=0?hi:0].name_fa : items[hi>=0?hi:0].name_en) : '' ); }
+				else if ( e.key === 'Escape' ){ close(); }
+				else if ( e.key === 'Enter' ){ close(); }
+			});
+			document.addEventListener('click', function(e){ if ( box && ! box.contains(e.target) && e.target !== inp ) close(); });
+		}
+		return { fmt:fmt, splitBrand:splitBrand, parseSku:parseSku, compute:compute, attachBrandSuggest:attachBrandSuggest };
 	}
 	</script>
 	<?php
@@ -144,6 +222,7 @@ function tk_render_calculator() {
 		var TK = <?php echo $data; ?>;
 		var E = tkInit(TK);
 		var line = document.getElementById('tk-c-line'), box = document.getElementById('tk-c-result');
+		E.attachBrandSuggest(line);
 		function run(){
 			var v = line.value.trim();
 			if ( ! v ) { box.innerHTML = ''; return; }
@@ -188,26 +267,37 @@ function tk_render_proforma() {
 				placeholder="مدل+سایز (چسبیده) + برند (اختیاری) + تعداد — Enter = ثبت خط&#10;مثال: a22 12 یا c90 دانگیل 10">
 			<p style="margin-top:10px">
 				<button class="button" type="button" onclick="window.print()">چاپ</button>
-				<button class="button" type="button" id="tk-pf-clear" type="button">پاک کردن</button>
+				<button class="button" type="button" id="tk-pf-clear">پاک کردن</button>
 			</p>
 			<div id="tk-pf-total" style="margin-top:12px;font-size:20px;font-weight:700;color:#0e3a40"></div>
 		</div>
-		<div style="flex:1 1 46%;min-width:300px">
+		<div id="tk-pf-print" style="flex:1 1 46%;min-width:300px">
 			<table class="tk-specs" id="tk-pf-table">
-				<tr><th>کالا</th><th>برند</th><th>ضریب واحد</th><th>قیمت تکی</th><th>تعداد</th><th>جمع</th><th></th></tr>
+				<tr><th>کالا</th><th>برند</th><th>ضریب واحد</th><th>قیمت تکی</th><th>تعداد</th><th>جمع</th><th class="tk-del-col"></th></tr>
 				<tbody id="tk-pf-body"></tbody>
 			</table>
+			<div id="tk-pf-total2" style="margin-top:10px;font-size:18px;font-weight:700;color:#0e3a40"></div>
 		</div>
 	</div>
 	</div>
-	<style>@media print{body *{visibility:hidden}#tk-pf,#tk-pf *{visibility:visible}#tk-pf{position:absolute;inset:0}}</style>
+	<style>
+	@media print{
+		body *{visibility:hidden}
+		#tk-pf-print, #tk-pf-print *{visibility:visible}
+		#tk-pf-print{position:absolute;inset:0;width:100%}
+		#tk-pf-print input{border:none;background:none}
+		#tk-pf-print .tk-del, #tk-pf-print .tk-del-col{display:none}
+	}
+	</style>
 	<script>
 	(function(){
 		var TK = <?php echo $data; ?>;
 		var E = tkInit(TK);
 		var line = document.getElementById('tk-pf-line'), defBrand = document.getElementById('tk-pf-brand');
-		var body = document.getElementById('tk-pf-body'), tot = document.getElementById('tk-pf-total');
+		var body = document.getElementById('tk-pf-body');
+		var tot = document.getElementById('tk-pf-total'), tot2 = document.getElementById('tk-pf-total2');
 		var rows = [];
+		E.attachBrandSuggest(line);
 		function splitLine(l){
 			var tokens = l.split(/\s+/).filter(function(s){return s;});
 			if ( ! tokens.length ) return null;
@@ -230,15 +320,16 @@ function tk_render_proforma() {
 			render();
 		}
 		function render(){
+			var db = defBrand.value.trim();
 			var html = '';
 			rows.forEach(function(r,i){
 				html += '<tr data-i="'+i+'">'
 					+ '<td><input data-col="model" value="'+ String(r.model||'').replace(/"/g,'&quot;') +'" style="width:110px"></td>'
-					+ '<td><input data-col="brand" value="'+ String(r.brand||'').replace(/"/g,'&quot;') +'" placeholder="برند" style="width:90px"></td>'
+					+ '<td><input data-col="brand" value="'+ String(r.brand||db).replace(/"/g,'&quot;') +'" placeholder="برند" style="width:90px"></td>'
 					+ '<td class="c-coef"></td><td class="c-unit"></td>'
 					+ '<td><input data-col="qty" type="number" min="1" value="'+ (r.qty||1) +'" style="width:60px"></td>'
 					+ '<td class="c-total"></td>'
-					+ '<td><button type="button" class="button button-small tk-del">حذف</button></td></tr>';
+					+ '<td class="tk-del"><button type="button" class="button button-small tk-del-btn">حذف</button></td></tr>';
 			});
 			body.innerHTML = html;
 			recalcAll();
@@ -255,27 +346,24 @@ function tk_render_proforma() {
 		function recalcAll(){
 			var sum = 0;
 			body.querySelectorAll('tr').forEach(function(tr){ recalcRow(tr); sum += tr._total||0; });
-			tot.textContent = 'جمع کل: ' + E.fmt(sum) + ' ریال';
+			var t = 'جمع کل: ' + E.fmt(sum) + ' ریال';
+			tot.textContent = t; tot2.textContent = t;
 		}
 		line.addEventListener('keydown', function(e){
 			if ( e.key === 'Enter' ) { e.preventDefault(); try { addLines(line.value); line.value=''; } catch(err){ tot.textContent = 'خطا: ' + err.message; } }
 		});
 		document.getElementById('tk-pf-clear').addEventListener('click', function(){ rows = []; render(); });
-		defBrand.addEventListener('input', function(){ try { recalcAll(); } catch(e){} });
+		defBrand.addEventListener('input', function(){ try { render(); } catch(e){} });
 		body.addEventListener('input', function(e){
 			var tr = e.target.closest('tr'); if ( ! tr ) return;
 			var i = +tr.getAttribute('data-i'), col = e.target.getAttribute('data-col');
 			if ( col === 'model' ) rows[i].model = e.target.value;
 			else if ( col === 'brand' ) rows[i].brand = e.target.value;
 			else if ( col === 'qty' ) rows[i].qty = +e.target.value || 1;
-			try {
-				recalcRow(tr);
-				var sum = 0; body.querySelectorAll('tr').forEach(function(t){ sum += t._total||0; });
-				tot.textContent = 'جمع کل: ' + E.fmt(sum) + ' ریال';
-			} catch(err){ tot.textContent = 'خطا: ' + err.message; }
+			try { recalcRow(tr); var sum = 0; body.querySelectorAll('tr').forEach(function(t){ sum += t._total||0; }); var t = 'جمع کل: ' + E.fmt(sum) + ' ریال'; tot.textContent = t; tot2.textContent = t; } catch(err){ tot.textContent = 'خطا: ' + err.message; }
 		});
 		body.addEventListener('click', function(e){
-			if ( e.target.classList.contains('tk-del') ) {
+			if ( e.target.classList.contains('tk-del-btn') ) {
 				var i = +e.target.closest('tr').getAttribute('data-i');
 				rows.splice(i,1); render();
 			}
