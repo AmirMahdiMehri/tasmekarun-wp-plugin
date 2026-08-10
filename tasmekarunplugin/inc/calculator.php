@@ -64,6 +64,15 @@ function tk_calc_js_core() {
 		var SECS = TK.sections.slice().sort(function(a,b){ return b.slug.length - a.slug.length; });
 		function fmt(n){ return Number(n||0).toLocaleString('fa-IR'); }
 		function hasFa(s){ return /[\u0600-\u06FF]/.test(s); }
+		function secOf(slug){ for (var i=0;i<SECS.length;i++) if (SECS[i].slug===slug) return SECS[i]; return null; }
+		function unitFor(secSlug, parsed, coef){
+			var sec = secOf(secSlug); if ( ! sec ) return null;
+			var len = Math.max(parsed.size, parseInt(sec.min_charge||0,10)||0);
+			if ( sec.formula_key === 'LEN_COEF' ) return len * coef;
+			if ( sec.formula_key === 'RIBS_LEN_COEF' ) return parsed.ribs ? parsed.ribs * len * coef : null;
+			return null;
+		}
+		function skuOf(secSlug, parsed){ var sec=secOf(secSlug); return (parsed.ribs?parsed.ribs+secSlug:secSlug)+parsed.size; }
 		function splitBrand(t){
 			if ( ! t ) return null;
 			var lt = String(t).toLowerCase();
@@ -106,21 +115,16 @@ function tk_calc_js_core() {
 			if ( ! p ) return { ok:false, msg:'مدل نامشخص است' };
 			var sb = splitBrand(brandName);
 			if ( ! sb ) return { ok:false, msg:'برند نامشخص است' };
-			var sec = null;
-			for ( var i=0;i<SECS.length;i++ ) if ( SECS[i].slug === p.section ) sec = SECS[i];
+			var sec = secOf(p.section);
 			if ( ! sec ) return { ok:false, msg:'سری نامشخص است' };
 			var cm = TK.coef[sb.b.id] || {};
 			var coef = cm[sec.id];
 			if ( coef === undefined ) return { ok:false, msg:'ضریب این برند/سری تعریف نشده' };
-			var len = Math.max(p.size, parseInt(sec.min_charge||0,10)||0);
-			var unit = null;
-			if ( sec.formula_key === 'LEN_COEF' ) unit = len * coef;
-			else if ( sec.formula_key === 'RIBS_LEN_COEF' ) unit = p.ribs ? p.ribs * len * coef : null;
+			var unit = unitFor(p.section, p, coef);
 			if ( unit === null ) return { ok:false, msg:'فرمول این سری تعریف نشده؛ تماس بگیرید' };
 			var q = parseInt(qty,10) || 1;
-			return { ok:true, sku:(p.ribs?p.ribs+sec.slug:sec.slug)+p.size, brand:sb.b.name_fa, coef:coef, unit:unit, qty:q, total:unit*q };
+			return { ok:true, sku:skuOf(p.section,p), brand:sb.b.name_fa, coef:coef, unit:unit, qty:q, total:unit*q };
 		}
-		/* پیشنهاد هوشمند برند هنگام تایپ (سریع، سمت مرورگر) */
 		function attachBrandSuggest(inp){
 			var box = null, items = [], hi = -1;
 			function ensure(){
@@ -143,6 +147,7 @@ function tk_calc_js_core() {
 				var prior = upto.slice(0, upto.length - cur.length).trim().length > 0;
 				return { cur: cur, prior: prior };
 			}
+			function curTok(){ return tokenAtCaret().cur; }
 			function matches(cur){
 				var lc = cur.toLowerCase(), out = [];
 				for ( var i=0;i<TK.brands.length && out.length<6;i++ ){
@@ -155,11 +160,11 @@ function tk_calc_js_core() {
 				if ( ! box ) return;
 				var html = '';
 				items.forEach(function(b,i){
-					html += '<div data-v="' + (hasFa(items[hi===i?i:0].name_fa) && i===hi ? b.name_fa : (i===hi ? (hasFa(cur()) ? b.name_fa : b.name_en) : (hasFa(cur()) ? b.name_fa : b.name_en))) + '" style="padding:8px 12px;cursor:pointer;' + (i===hi?'background:#e8f0f5;':'') + '">' + b.name_fa + ' <small style="color:#777">(' + b.name_en + ')</small></div>';
+					var name = hasFa(curTok()) ? b.name_fa : b.name_en;
+					html += '<div data-v="'+name+'" style="padding:8px 12px;cursor:pointer;'+(i===hi?'background:#e8f0f5;':'')+'">'+b.name_fa+' <small style="color:#777">('+b.name_en+')</small></div>';
 				});
 				box.innerHTML = html;
 			}
-			function cur(){ var t = tokenAtCaret(); return t.cur; }
 			function open(){
 				var t = tokenAtCaret();
 				if ( ! t.prior || ! t.cur || /^\d/.test(t.cur) || ! /[a-zA-Z\u0600-\u06FF]/.test(t.cur) ) { close(); return; }
@@ -191,13 +196,13 @@ function tk_calc_js_core() {
 				if ( ! isOpen() ) return;
 				if ( e.key === 'ArrowDown' ){ e.preventDefault(); hi = (hi+1) % items.length; paint(); }
 				else if ( e.key === 'ArrowUp' ){ e.preventDefault(); hi = (hi-1+items.length) % items.length; paint(); }
-				else if ( e.key === 'Tab' ){ e.preventDefault(); pick( items[ hi >= 0 ? hi : 0 ] ? (hasFa(cur()) ? items[hi>=0?hi:0].name_fa : items[hi>=0?hi:0].name_en) : '' ); }
+				else if ( e.key === 'Tab' ){ e.preventDefault(); if(items.length) pick( hasFa(curTok()) ? items[hi>=0?hi:0].name_fa : items[hi>=0?hi:0].name_en ); }
 				else if ( e.key === 'Escape' ){ close(); }
 				else if ( e.key === 'Enter' ){ close(); }
 			});
 			document.addEventListener('click', function(e){ if ( box && ! box.contains(e.target) && e.target !== inp ) close(); });
 		}
-		return { fmt:fmt, splitBrand:splitBrand, parseSku:parseSku, compute:compute, attachBrandSuggest:attachBrandSuggest };
+		return { fmt:fmt, splitBrand:splitBrand, parseSku:parseSku, compute:compute, attachBrandSuggest:attachBrandSuggest, secOf:secOf, unitFor:unitFor, skuOf:skuOf };
 	}
 	</script>
 	<?php
@@ -247,57 +252,198 @@ function tk_render_calculator() {
 	return ob_get_clean();
 }
 
-/* ---------- پیش‌فاکتور ---------- */
+/* ---------- پیش‌فاکتور حرفه‌ای ---------- */
 add_shortcode( 'tk_proforma', 'tk_render_proforma' );
 function tk_render_proforma() {
 	$data = wp_json_encode( tk_client_data() );
+	$meta = wp_json_encode( array(
+		'logo'  => get_option( 'tk_logo_url', '' ),
+		'phone' => (function_exists('get_option') ? (is_array(get_option('tk_settings',array())) ? (isset(get_option('tk_settings',array())['phone']) ? get_option('tk_settings',array())['phone'] : '') : '') : ''),
+		'site'  => 'tasmekarun.ir',
+	) );
 	ob_start();
 	tk_calc_js_core();
 	?>
 	<div class="tk-shop" id="tk-pf" dir="rtl">
 	<h1>پیش‌فاکتور — تسمه کارون</h1>
 	<?php tk_tools_nav(); ?>
-	<div style="margin-bottom:10px">
-		<label>برند پیشفرض: <input id="tk-pf-brand" list="tk-brands-list" placeholder="مثلاً تایگر (اختیاری)" style="padding:10px;min-width:200px"></label>
+
+	<div id="tk-pf-readonly" style="display:none"></div>
+
+	<div id="tk-pf-editor">
+	<div style="margin-bottom:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+		<label>برند پیشفرض: <input id="tk-pf-brand" list="tk-brands-list" placeholder="مثلاً تایگر (اختیاری)" style="padding:10px;min-width:180px"></label>
+		<label>تم فاکتور:
+			<select id="tk-pf-theme" style="padding:10px">
+				<option value="petrol">نفتی (لوگو)</option>
+				<option value="olive">زیتونی</option>
+				<option value="gray">طوسی</option>
+				<option value="teal">فیروزه‌ای</option>
+			</select>
+		</label>
 		<?php tk_brands_datalist(); ?>
 	</div>
 	<div style="display:flex;gap:18px;flex-wrap:wrap;align-items:flex-start">
 		<div style="flex:0 1 46%;min-width:280px">
 			<input id="tk-pf-line" style="width:100%;padding:12px;box-sizing:border-box"
 				placeholder="مدل+سایز (چسبیده) + برند (اختیاری) + تعداد — Enter = ثبت خط&#10;مثال: a22 12 یا c90 دانگیل 10">
-			<p style="margin-top:10px">
+			<p style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">
+				<button class="button" type="button" id="tk-add-misc">+ محصول متفرقه</button>
+				<button class="button" type="button" id="tk-add-custom">+ تسمه دلخواه</button>
+				<button class="button" type="button" id="tk-pf-customize">ساخت فاکتور شخصی‌سازی‌شده</button>
+			</p>
+			<div id="tk-pf-custom" style="display:none;border:1px dashed #bbb;border-radius:10px;padding:12px;margin-top:8px;background:#fafafa">
+				<label><input type="checkbox" id="tk-c-on"> حالت شخصی‌سازی (حذف برند تسمه کارون)</label><br><br>
+				<label>لینک لوگو (اختیاری): <input id="tk-c-logo" dir="ltr" style="width:100%" placeholder="https://.../logo.png"></label><br><br>
+				<label>نام سایت (اختیاری): <input id="tk-c-site" dir="ltr" style="width:100%"></label><br><br>
+				<label>نام فروشگاه / فروشنده (اجباری): <input id="tk-c-seller" style="width:100%"></label>
+			</div>
+			<p style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">
 				<button class="button" type="button" onclick="window.print()">چاپ</button>
+				<button class="button" type="button" id="tk-pf-share">اشتراک‌گذاری (کپی لینک)</button>
+				<button class="button" type="button" id="tk-pf-online">فاکتور آنلاین</button>
 				<button class="button" type="button" id="tk-pf-clear">پاک کردن</button>
 			</p>
-			<div id="tk-pf-total" style="margin-top:12px;font-size:20px;font-weight:700;color:#0e3a40"></div>
+			<div id="tk-pf-total" style="margin-top:12px;font-size:20px;font-weight:800;color:#0e3a40"></div>
 		</div>
-		<div id="tk-pf-print" style="flex:1 1 46%;min-width:300px">
+		<div style="flex:1 1 46%;min-width:300px">
 			<table class="tk-specs" id="tk-pf-table">
-				<tr><th>کالا</th><th>برند</th><th>ضریب واحد</th><th>قیمت تکی</th><th>تعداد</th><th>جمع</th><th class="tk-del-col"></th></tr>
+				<tr><th>کالا</th><th>برند</th><th>ضریب واحد <span id="tk-pf-pencilwrap"></span></th><th>قیمت تکی</th><th>تعداد</th><th>جمع</th><th class="tk-del-col"></th></tr>
 				<tbody id="tk-pf-body"></tbody>
 			</table>
-			<div id="tk-pf-total2" style="margin-top:10px;font-size:18px;font-weight:700;color:#0e3a40"></div>
 		</div>
 	</div>
+
+	<div id="tk-pf-print" style="margin-top:24px"></div>
 	</div>
+
 	<style>
+	.tk-inv{--inv-a:#0E3A40;--inv-b:#155a63;font-family:inherit;background:#fff;color:#1a1a1a;border-radius:14px;overflow:hidden;box-shadow:0 10px 30px rgba(0,0,0,.10)}
+	.tk-inv--gray{--inv-a:#585D61;--inv-b:#7d8387}
+	.tk-inv--olive{--inv-a:#5A7D2A;--inv-b:#7fa043}
+	.tk-inv--teal{--inv-a:#0F6B6B;--inv-b:#159090}
+	.tk-inv .inv-head{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:22px 26px;color:#fff;background:linear-gradient(135deg,var(--inv-a),var(--inv-b))}
+	.tk-inv .inv-brand{display:flex;gap:12px;align-items:center}
+	.tk-inv .inv-logo{width:56px;height:56px;object-fit:contain;background:#fff;border-radius:12px;padding:6px}
+	.tk-inv .inv-logo-svg{width:56px;height:56px;background:#fff;border-radius:12px;padding:6px}
+	.tk-inv .inv-title{font-size:22px;font-weight:800}
+	.tk-inv .inv-sub{font-size:12px;opacity:.9}
+	.tk-inv .inv-meta{text-align:left;font-size:12px;line-height:2}
+	.tk-inv .inv-accent{height:6px;background:linear-gradient(90deg,var(--inv-b),var(--inv-a));opacity:.5}
+	.tk-inv table{width:100%;border-collapse:collapse;font-size:13px}
+	.tk-inv thead th{background:var(--inv-a);color:#fff;padding:10px 12px;font-weight:700}
+	.tk-inv tbody td{padding:9px 12px;border-bottom:1px solid #eee}
+	.tk-inv tbody tr:nth-child(even){background:#f6f8f8}
+	.tk-inv .inv-total{display:flex;justify-content:flex-end;padding:16px 26px}
+	.tk-inv .inv-total .box{background:linear-gradient(135deg,var(--inv-a),var(--inv-b));color:#fff;border-radius:12px;padding:12px 26px;font-size:17px;font-weight:800;box-shadow:0 6px 16px rgba(0,0,0,.15)}
+	.tk-inv .inv-foot{display:flex;justify-content:space-between;gap:10px;padding:12px 26px;font-size:11px;color:#777;border-top:1px dashed #ddd}
 	@media print{
 		body *{visibility:hidden}
 		#tk-pf-print, #tk-pf-print *{visibility:visible}
-		#tk-pf-print{position:absolute;inset:0;width:100%}
-		#tk-pf-print input{border:none;background:none}
-		#tk-pf-print .tk-del, #tk-pf-print .tk-del-col{display:none}
+		#tk-pf-print{position:absolute;inset:0;width:100%;margin:0;box-shadow:none}
+		#tk-pf-print .tk-inv{box-shadow:none;border-radius:0}
 	}
 	</style>
+
 	<script>
 	(function(){
 		var TK = <?php echo $data; ?>;
+		var META = <?php echo $meta; ?>;
 		var E = tkInit(TK);
-		var line = document.getElementById('tk-pf-line'), defBrand = document.getElementById('tk-pf-brand');
-		var body = document.getElementById('tk-pf-body');
-		var tot = document.getElementById('tk-pf-total'), tot2 = document.getElementById('tk-pf-total2');
-		var rows = [];
+		var $ = function(id){ return document.getElementById(id); };
+		var line = $('tk-pf-line'), defBrand = $('tk-pf-brand'), themeSel = $('tk-pf-theme');
+		var body = $('tk-pf-body'), tot = $('tk-pf-total'), printBox = $('tk-pf-print');
+		var pencilWrap = $('tk-pf-pencilwrap'), readonlyBox = $('tk-pf-readonly'), editorBox = $('tk-pf-editor');
+		var customPanel = $('tk-pf-custom');
 		E.attachBrandSuggest(line);
+
+		var state = { rows: [], theme: 'petrol', invNo: '', custom: { on:false, logo:'', site:'', seller:'' }, coefEdit: false };
+
+		function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+		function escAttr(s){ return esc(s).replace(/"/g,'&quot;'); }
+
+		function computeRow(r){
+			if ( r.kind === 'misc' ) {
+				var price = +r.price || 0, q = +r.qty || 1;
+				return { ok:true, kind:'misc', sku:r.name||'—', brand:r.brand||'', coef:null, unit:price, qty:q, total:price*q };
+			}
+			if ( r.kind === 'custom' ) {
+				var p = E.parseSku(r.model);
+				if ( ! p ) return { ok:false, kind:'custom', msg:'مدل نامشخص' };
+				var u = E.unitFor(p.section, p, +r.coef || 0);
+				if ( u === null ) return { ok:false, kind:'custom', msg:'فرمول نامشخص' };
+				var qq = +r.qty || 1;
+				return { ok:true, kind:'custom', sku:E.skuOf(p.section,p), brand:r.brand||'دلخواه', coef:+r.coef||0, unit:u, qty:qq, total:u*qq };
+			}
+			var inf = E.compute(r.model, r.brand || defBrand.value, r.qty);
+			if ( ! inf.ok ) return { ok:false, kind:'belt', msg:inf.msg };
+			var coef = ( r.coefOv != null ? +r.coefOv : inf.coef );
+			var pp = E.parseSku(r.model);
+			var unit = E.unitFor(pp.section, pp, coef);
+			var q2 = +r.qty || 1;
+			return { ok:true, kind:'belt', sku:inf.sku, brand:inf.brand, coef:coef, unit:unit, qty:q2, total:unit*q2 };
+		}
+
+		function inlineLogo(){
+			return '<svg class="inv-logo-svg" viewBox="0 0 64 64"><circle cx="32" cy="38" r="15" fill="none" stroke="#0E3A40" stroke-width="6"/><circle cx="32" cy="15" r="5" fill="#0E3A40"/><path d="M8 38a24 24 0 0 0 48 0" fill="none" stroke="#585D61" stroke-width="4" stroke-dasharray="4 4"/></svg>';
+		}
+
+		function invoiceHTML(){
+			var c = state.custom, on = c && c.on;
+			var logo = on ? (c.logo||'') : (META.logo||'');
+			var store = on ? (c.seller||'فروشنده') : 'تسمه کارون';
+			var site = on ? (c.site||'') : META.site;
+			if ( ! state.invNo ) state.invNo = 'TK-' + Date.now().toString().slice(-6);
+			var logoHtml = logo ? '<img class="inv-logo" src="'+escAttr(logo)+'" alt="">' : inlineLogo();
+			var h = '<div class="tk-inv tk-inv--'+esc(state.theme)+'">';
+			h += '<div class="inv-head"><div class="inv-brand">'+logoHtml+'<div><div class="inv-title">'+esc(store)+'</div>'+(site?'<div class="inv-sub">'+esc(site)+'</div>':'')+'</div></div>';
+			h += '<div class="inv-meta"><div>پیش‌فاکتور شماره: '+esc(state.invNo)+'</div><div>تاریخ: '+new Date().toLocaleDateString('fa-IR')+'</div></div></div>';
+			h += '<div class="inv-accent"></div>';
+			h += '<table><thead><tr><th>کالا</th><th>برند</th><th>ضریب واحد</th><th>قیمت تکی</th><th>تعداد</th><th>جمع</th></tr></thead><tbody>';
+			var total = 0;
+			state.rows.forEach(function(r){
+				var cr = computeRow(r);
+				if ( cr.ok ) total += cr.total;
+				h += '<tr><td>'+esc(cr.sku)+'</td><td>'+esc(cr.brand)+'</td><td>'+(cr.coef!=null?E.fmt(cr.coef):'—')+'</td><td>'+(cr.ok?E.fmt(cr.unit)+' ریال':'—')+'</td><td>'+cr.qty+'</td><td>'+(cr.ok?E.fmt(cr.total)+' ریال':'—')+'</td></tr>';
+			});
+			h += '</tbody></table>';
+			h += '<div class="inv-total"><div class="box">جمع کل: '+E.fmt(total)+' ریال</div></div>';
+			h += '<div class="inv-foot"><span>'+(on?esc(c.seller||''):'تسمه کارون — '+esc(META.site))+'</span><span>'+(on?'':('تماس: '+esc(META.phone)))+'</span></div>';
+			h += '</div>';
+			return h;
+		}
+
+		function renderEditor(){
+			var html = '';
+			state.rows.forEach(function(r,i){
+				var cr = computeRow(r);
+				html += '<tr data-i="'+i+'">';
+				html += '<td><input data-col="model" value="'+escAttr(r.kind==='misc'?r.name:r.model)+'" style="width:100px"></td>';
+				html += '<td><input data-col="brand" value="'+escAttr(r.brand||'')+'" placeholder="برند" style="width:80px"></td>';
+				if ( r.kind === 'misc' ) html += '<td>—</td>';
+				else if ( r.kind === 'custom' ) html += '<td><input data-col="coef" type="number" value="'+(r.coef||0)+'" style="width:80px"></td>';
+				else html += ( state.coefEdit ? '<td><input data-col="coefov" type="number" value="'+(cr.coef!=null?cr.coef:0)+'" style="width:80px"></td>' : '<td class="c-coef">'+(cr.coef!=null?E.fmt(cr.coef):'—')+'</td>' );
+				if ( r.kind === 'misc' ) html += '<td><input data-col="price" type="number" value="'+(r.price||0)+'" style="width:90px"></td>';
+				else html += '<td class="c-unit">'+(cr.ok?E.fmt(cr.unit)+' ریال':'—')+'</td>';
+				html += '<td><input data-col="qty" type="number" min="1" value="'+(r.qty||1)+'" style="width:55px"></td>';
+				html += '<td class="c-total">'+(cr.ok?E.fmt(cr.total)+' ریال':'—')+'</td>';
+				html += '<td class="tk-del"><button type="button" class="button button-small tk-del-btn">حذف</button></td></tr>';
+			});
+			body.innerHTML = html;
+			pencilWrap.innerHTML = state.coefEdit
+				? ' <button type="button" class="button button-small tk-apply" style="background:#2e7d32;color:#fff" title="اعمال">✔</button> <button type="button" class="button button-small tk-cancel" style="background:#c62828;color:#fff" title="انصراف">✖</button>'
+				: ' <button type="button" class="button button-small tk-pencil" title="ویرایش ضریب‌ها">✎</button>';
+			recalc();
+		}
+
+		function recalc(){
+			var sum = 0;
+			state.rows.forEach(function(r){ var cr = computeRow(r); if ( cr.ok ) sum += cr.total; });
+			var t = 'جمع کل: ' + E.fmt(sum) + ' ریال';
+			tot.textContent = t;
+			printBox.innerHTML = invoiceHTML();
+		}
+
 		function splitLine(l){
 			var tokens = l.split(/\s+/).filter(function(s){return s;});
 			if ( ! tokens.length ) return null;
@@ -315,57 +461,58 @@ function tk_render_proforma() {
 		function addLines(text){
 			text.split('\n').forEach(function(l){
 				var p = splitLine(l.trim());
-				if ( p && p.model ) rows.push(p);
+				if ( p && p.model ) state.rows.push({ kind:'belt', model:p.model, brand:p.brand, qty:p.qty, coefOv:null });
 			});
-			render();
+			renderEditor();
 		}
-		function render(){
-			var db = defBrand.value.trim();
-			var html = '';
-			rows.forEach(function(r,i){
-				html += '<tr data-i="'+i+'">'
-					+ '<td><input data-col="model" value="'+ String(r.model||'').replace(/"/g,'&quot;') +'" style="width:110px"></td>'
-					+ '<td><input data-col="brand" value="'+ String(r.brand||db).replace(/"/g,'&quot;') +'" placeholder="برند" style="width:90px"></td>'
-					+ '<td class="c-coef"></td><td class="c-unit"></td>'
-					+ '<td><input data-col="qty" type="number" min="1" value="'+ (r.qty||1) +'" style="width:60px"></td>'
-					+ '<td class="c-total"></td>'
-					+ '<td class="tk-del"><button type="button" class="button button-small tk-del-btn">حذف</button></td></tr>';
-			});
-			body.innerHTML = html;
-			recalcAll();
-		}
-		function recalcRow(tr){
-			var i = +tr.getAttribute('data-i'), r = rows[i];
-			if ( ! r ) return;
-			var res = E.compute(r.model, r.brand || defBrand.value, r.qty);
-			tr.querySelector('.c-coef').textContent = res.ok ? E.fmt(res.coef) : '—';
-			tr.querySelector('.c-unit').textContent = res.ok ? E.fmt(res.unit)+' ریال' : (res.msg||'—');
-			tr.querySelector('.c-total').textContent = res.ok ? E.fmt(res.total)+' ریال' : '—';
-			tr._total = res.ok ? res.total : 0;
-		}
-		function recalcAll(){
-			var sum = 0;
-			body.querySelectorAll('tr').forEach(function(tr){ recalcRow(tr); sum += tr._total||0; });
-			var t = 'جمع کل: ' + E.fmt(sum) + ' ریال';
-			tot.textContent = t; tot2.textContent = t;
-		}
+
 		line.addEventListener('keydown', function(e){
-			if ( e.key === 'Enter' ) { e.preventDefault(); try { addLines(line.value); line.value=''; } catch(err){ tot.textContent = 'خطا: ' + err.message; } }
+			if ( e.key === 'Enter' ){ e.preventDefault(); try { addLines(line.value); line.value=''; } catch(err){ tot.textContent='خطا: '+err.message; } }
 		});
-		document.getElementById('tk-pf-clear').addEventListener('click', function(){ rows = []; render(); });
-		defBrand.addEventListener('input', function(){ try { render(); } catch(e){} });
+		$('tk-add-misc').addEventListener('click', function(){ state.rows.push({kind:'misc',name:'',brand:'',price:0,qty:1}); renderEditor(); });
+		$('tk-add-custom').addEventListener('click', function(){ state.rows.push({kind:'custom',model:'',brand:'',coef:0,qty:1}); renderEditor(); });
+		$('tk-pf-clear').addEventListener('click', function(){ if(confirm('کل پیش‌فاکتور پاک شود؟')){ state.rows=[]; state.coefEdit=false; renderEditor(); } });
+		defBrand.addEventListener('input', function(){ recalc(); });
+		themeSel.addEventListener('change', function(){ state.theme = themeSel.value; recalc(); });
+
+		$('tk-pf-customize').addEventListener('click', function(){ customPanel.style.display = customPanel.style.display==='none' ? 'block' : 'none'; });
+		function syncCustom(){
+			state.custom = { on: $('tk-c-on').checked, logo: $('tk-c-logo').value.trim(), site: $('tk-c-site').value.trim(), seller: $('tk-c-seller').value.trim() };
+			recalc();
+		}
+		['tk-c-on','tk-c-logo','tk-c-site','tk-c-seller'].forEach(function(id){ $(id).addEventListener('input', syncCustom); });
+
+		pencilWrap.addEventListener('click', function(e){
+			if ( e.target.classList.contains('tk-pencil') ){
+				if ( confirm('آیا مطمئن هستید می‌خواهید ضریب‌ها را تغییر دهید؟' ) ){ state.coefEdit = true; renderEditor(); }
+			} else if ( e.target.classList.contains('tk-apply') ){
+				state.coefEdit = false; renderEditor();
+			} else if ( e.target.classList.contains('tk-cancel') ){
+				state.rows.forEach(function(r){ r.coefOv = null; });
+				state.coefEdit = false; renderEditor();
+			}
+		});
+
 		body.addEventListener('input', function(e){
 			var tr = e.target.closest('tr'); if ( ! tr ) return;
-			var i = +tr.getAttribute('data-i'), col = e.target.getAttribute('data-col');
-			if ( col === 'model' ) rows[i].model = e.target.value;
-			else if ( col === 'brand' ) rows[i].brand = e.target.value;
-			else if ( col === 'qty' ) rows[i].qty = +e.target.value || 1;
-			try { recalcRow(tr); var sum = 0; body.querySelectorAll('tr').forEach(function(t){ sum += t._total||0; }); var t = 'جمع کل: ' + E.fmt(sum) + ' ریال'; tot.textContent = t; tot2.textContent = t; } catch(err){ tot.textContent = 'خطا: ' + err.message; }
+			var i = +tr.getAttribute('data-i'), r = state.rows[i], col = e.target.getAttribute('data-col');
+			if ( ! r ) return;
+			if ( col === 'model' ){ if (r.kind==='misc') r.name = e.target.value; else r.model = e.target.value; }
+			else if ( col === 'brand' ) r.brand = e.target.value;
+			else if ( col === 'qty' ) r.qty = +e.target.value || 1;
+			else if ( col === 'price' ) r.price = +e.target.value || 0;
+			else if ( col === 'coef' ) r.coef = +e.target.value || 0;
+			else if ( col === 'coefov' ) r.coefOv = e.target.value === '' ? null : +e.target.value;
+			var cr = computeRow(r);
+			tr.querySelector('.c-unit').textContent = cr.ok ? E.fmt(cr.unit)+' ریال' : '—';
+			tr.querySelector('.c-total').textContent = cr.ok ? E.fmt(cr.total)+' ریال' : '—';
+			var coefCell = tr.querySelector('.c-coef'); if ( coefCell ) coefCell.textContent = cr.coef!=null ? E.fmt(cr.coef) : '—';
+			recalc();
 		});
 		body.addEventListener('click', function(e){
-			if ( e.target.classList.contains('tk-del-btn') ) {
-				var i = +e.target.closest('tr').getAttribute('data-i');
-				rows.splice(i,1); render();
+			if ( e.target.classList.contains('tk-del-btn') ){
+				state.rows.splice(+e.target.closest('tr').getAttribute('data-i'),1);
+				renderEditor();
 			}
 		});
 		body.addEventListener('keydown', function(e){
@@ -373,20 +520,51 @@ function tk_render_proforma() {
 			var tr = inp.closest('tr');
 			function move(dir){
 				var target = dir > 0 ? tr.nextElementSibling : tr.previousElementSibling;
-				if ( target ) { var n = target.querySelector('input[data-col="'+inp.getAttribute('data-col')+'"]'); if ( n ) { e.preventDefault(); n.focus(); } }
-				else if ( dir > 0 ) { e.preventDefault(); line.focus(); }
+				if ( target ){ var n = target.querySelector('input[data-col="'+inp.getAttribute('data-col')+'"]'); if ( n ){ e.preventDefault(); n.focus(); } }
+				else if ( dir > 0 ){ e.preventDefault(); line.focus(); }
 			}
 			if ( e.key === 'ArrowDown' ) move(1);
 			else if ( e.key === 'ArrowUp' ) move(-1);
-			else if ( e.key === 'Enter' ) { e.preventDefault(); move(1); }
+			else if ( e.key === 'Enter' ){ e.preventDefault(); move(1); }
 		});
+
+		/* ---------- اشتراک / فاکتور آنلاین ---------- */
+		function serialize(){
+			return btoa(unescape(encodeURIComponent(JSON.stringify({ rows:state.rows, theme:state.theme, custom:state.custom, invNo:state.invNo }))));
+		}
+		function shareUrl(){
+			var base = location.pathname;
+			return location.origin + base + '?inv=' + serialize();
+		}
+		$('tk-pf-share').addEventListener('click', function(){
+			var u = shareUrl();
+			if ( navigator.clipboard ) { navigator.clipboard.writeText(u).then(function(){ alert('لینک کپی شد ✔'); }); }
+			else { prompt('لینک فاکتور:', u); }
+		});
+		$('tk-pf-online').addEventListener('click', function(){ window.open(shareUrl(), '_blank'); });
+
+		/* ---------- حالت فقط-خواندنی از لینک ---------- */
+		var q = new URLSearchParams(location.search);
+		var inv = q.get('inv');
+		if ( inv ) {
+			try {
+				var st = JSON.parse(decodeURIComponent(escape(atob(inv))));
+				state.rows = st.rows || []; state.theme = st.theme || 'petrol'; state.custom = st.custom || state.custom; state.invNo = st.invNo || '';
+				editorBox.style.display = 'none';
+				readonlyBox.style.display = 'block';
+				readonlyBox.innerHTML = invoiceHTML();
+				printBox.innerHTML = invoiceHTML();
+			} catch(e) { /* ignore */ }
+		} else {
+			renderEditor();
+		}
 	})();
 	</script>
 	<?php
 	return ob_get_clean();
 }
 
-/* ---------- لیست قیمت (بدون تغییر) ---------- */
+/* ---------- لیست قیمت ---------- */
 add_shortcode( 'tk_pricelist', 'tk_render_pricelist' );
 function tk_render_pricelist() {
 	global $wpdb; $p = $wpdb->prefix;

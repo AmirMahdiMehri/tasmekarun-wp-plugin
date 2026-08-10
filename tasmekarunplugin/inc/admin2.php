@@ -251,6 +251,7 @@ function tk_page_settings() {
 	if ( $_SERVER['REQUEST_METHOD'] === 'POST' && tk_ok() && isset( $_POST['tk_save_settings'] ) ) {
 		update_option( 'tk_settings', array(
 			'phone'     => sanitize_text_field( $_POST['phone'] ),
+			'tk_logo_url' => sanitize_text_field( $_POST['tk_logo_url'] ),
 			'currency'  => sanitize_text_field( $_POST['currency'] ),
 			'tpl_title' => sanitize_text_field( $_POST['tpl_title'] ),
 			'tpl_desc'  => wp_kses_post( $_POST['tpl_desc'] ),
@@ -268,6 +269,7 @@ function tk_page_settings() {
 	<form method="post"><?php wp_nonce_field( 'tk_act', 'tk_nonce' ); ?>
 	<table class="form-table">
 	<tr><th>شماره تلفن «برای خرید تماس بگیرید»</th><td><input type="text" name="phone" value="<?php echo esc_attr( $set['phone'] ); ?>" style="direction:ltr"></td></tr>
+	<tr><th>آدرس لوگو (URL اختیاری)</th><td><input type="text" name="tk_logo_url" value="<?php echo esc_attr( get_option( 'tk_logo_url', '' ) ); ?>" dir="ltr" style="width:450px"></td></tr>
 	<tr><th>واحد پول</th><td><input type="text" name="currency" value="<?php echo esc_attr( $set['currency'] ); ?>"></td></tr>
 	<tr><th>قالب عنوان محصول</th><td><input type="text" name="tpl_title" value="<?php echo esc_attr( $set['tpl_title'] ); ?>" style="width:450px" dir="ltr"></td></tr>
 	<tr><th>قالب توضیح محصول</th><td><textarea name="tpl_desc" rows="3" style="width:450px" dir="ltr"><?php echo esc_textarea( $set['tpl_desc'] ); ?></textarea><p class="description">جای‌نماها: {sku} {brand} {section} {size}</p></td></tr>
