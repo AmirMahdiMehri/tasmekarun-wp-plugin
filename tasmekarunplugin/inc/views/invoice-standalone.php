@@ -51,7 +51,7 @@ tbody tr:nth-child(even){background:#f6f8f8}
 			<?php if ( $logo ) { echo '<img class="inv-logo" src="' . esc_url( $logo ) . '" alt="">'; } elseif ( ! $on ) { echo '<svg class="inv-logo-svg" viewBox="0 0 64 64"><circle cx="32" cy="38" r="15" fill="none" stroke="#0E3A40" stroke-width="6"/><circle cx="32" cy="15" r="5" fill="#0E3A40"/><path d="M8 38a24 24 0 0 0 48 0" fill="none" stroke="#585D61" stroke-width="4" stroke-dasharray="4 4"/></svg>'; } ?>
 			<div><div class="inv-title"><?php echo esc_html( $store ); ?></div><?php if ( $site ) echo '<div class="inv-sub">' . esc_html( $site ) . '</div>'; ?></div>
 		</div>
-		<div class="inv-meta"><div>پیش‌فاکتور شماره: <?php echo esc_html( $data['invNo'] ); ?></div><div>تاریخ: <?php echo esc_html( ! empty( $brand['date'] ) ? $brand['date'] : date_i18n( 'Y/m/d' ) ); ?></div></div>
+		<div class="inv-meta"><div>پیش‌فاکتور شماره: <?php echo esc_html( $data['invNo'] ); ?></div><div>تاریخ: <?php echo esc_html( ! empty( $brand['date'] ) ? $brand['date'] : tk_jalali_str() ); ?></div></div>
 	</div>
 	<div class="inv-accent"></div>
 	<table><thead><tr><th>کالا</th><th>برند</th><th>ضریب واحد</th><th>قیمت تکی</th><th>تعداد</th><th>تخفیف</th><th>جمع</th></tr></thead><tbody>

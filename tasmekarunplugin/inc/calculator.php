@@ -31,6 +31,20 @@ function tk_tools_nav() {
 	echo '</nav>';
 }
 
+function tk_jalali_parts( $ts = null ) {
+	$ts = $ts === null ? time() : $ts;
+	$gy = (int) date( 'Y', $ts ); $gm = (int) date( 'n', $ts ); $gd = (int) date( 'j', $ts );
+	$g_d_m = array( 0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334 );
+	$gy2 = ( $gm > 2 ) ? ( $gy + 1 ) : $gy;
+	$days = 355666 + ( 365 * $gy ) + (int) ( ( $gy2 + 3 ) / 4 ) - (int) ( ( $gy2 + 99 ) / 100 ) + (int) ( ( $gy2 + 399 ) / 400 ) + $gd + $g_d_m[ $gm - 1 ];
+	$jy = -1595 + ( 33 * (int) ( $days / 12053 ) ); $days %= 12053;
+	$jy += 4 * (int) ( $days / 1461 ); $days %= 1461;
+	if ( $days > 365 ) { $jy += (int) ( ( $days - 1 ) / 365 ); $days = ( $days - 1 ) % 365; }
+	if ( $days < 186 ) { $jm = 1 + (int) ( $days / 31 ); $jd = 1 + ( $days % 31 ); }
+	else { $jm = 7 + (int) ( ( $days - 186 ) / 30 ); $jd = 1 + ( ( $days - 186 ) % 30 ); }
+	return array( 'y' => $jy, 'm' => $jm, 'd' => $jd );
+}
+function tk_jalali_str( $ts = null ) { $p = tk_jalali_parts( $ts ); return $p['y'] . '/' . $p['m'] . '/' . $p['d']; }
 function tk_client_data() {
 	global $wpdb; $p = $wpdb->prefix;
 	$brands = $wpdb->get_results( "SELECT id, name_fa, name_en, default_preset_id FROM {$p}tk_brands WHERE active=1" );
@@ -234,11 +248,13 @@ add_shortcode( 'tk_proforma', 'tk_render_proforma' );
 function tk_render_proforma() {
 	$data = wp_json_encode( tk_client_data() );
 	$set = get_option( 'tk_settings', array() );
-	$meta = wp_json_encode( array(
-		'logo'  => get_option( 'tk_logo_url', '' ),
-		'phone' => is_array( $set ) && isset( $set['phone'] ) ? $set['phone'] : '',
-		'site'  => 'tasmekarun.ir',
-	) );
+	$jp = tk_jalali_parts();
+$meta = wp_json_encode( array(
+'logo'  => get_option( 'tk_logo_url', '' ),
+'phone' => is_array( $set ) && isset( $set['phone'] ) ? $set['phone'] : '',
+'site'  => 'tasmekarun.ir',
+'jy' => $jp['y'], 'jm' => $jp['m'], 'jd' => $jp['d'],
+) );
 	ob_start();
 	tk_calc_js_core();
 	?>
@@ -276,7 +292,12 @@ function tk_render_proforma() {
          <label>نام خریدار (اختیاری): <input id="tk-c-buyer" style="width:100%"></label><br><br>
          <label>شماره تماس مشتری (اختیاری): <input id="tk-c-buyerphone" dir="ltr" style="width:100%"></label><br><br>
          <label>آدرس خریدار (اختیاری): <input id="tk-c-buyeraddr" style="width:100%"></label><br><br>
-         <label>تاریخ (اختیاری): <input id="tk-c-date" style="width:100%"></label><br><br>
+         <label>تاریخ (اختیاری):
+<span style="display:inline-flex;gap:4px;align-items:center">
+<input id="tk-c-date-y" type="number" placeholder="سال" style="width:70px"> /
+<input id="tk-c-date-m" type="number" min="1" max="12" placeholder="ماه" style="width:55px"> /
+<input id="tk-c-date-d" type="number" min="1" max="31" placeholder="روز" style="width:55px">
+</span></label><br><br>
          <label>شماره فاکتور (اختیاری): <input id="tk-c-invno" dir="ltr" style="width:100%"></label>
      </div>
      </div>
@@ -415,10 +436,12 @@ function tk_render_proforma() {
 			state.custom.logo=$('tk-c-logo').value.trim(); state.custom.site=$('tk-c-site').value.trim();
 			state.custom.seller=$('tk-c-seller').value.trim(); state.custom.phone=$('tk-c-phone').value.trim();
 			state.custom.buyer=$('tk-c-buyer').value.trim(); state.custom.buyerphone=$('tk-c-buyerphone').value.trim();
-			state.custom.buyeraddr=$('tk-c-buyeraddr').value.trim(); state.custom.date=$('tk-c-date').value.trim();
+			state.custom.buyeraddr=$('tk-c-buyeraddr').value.trim();
+var jy=$('tk-c-date-y').value.trim()||META.jy, jm=$('tk-c-date-m').value.trim()||META.jm, jd=$('tk-c-date-d').value.trim()||META.jd;
+state.custom.date=jy+'/'+jm+'/'+jd;
 			state.custom.invno=$('tk-c-invno').value.trim();
 		}
-		['tk-c-logo','tk-c-site','tk-c-seller','tk-c-phone','tk-c-buyer','tk-c-buyerphone','tk-c-buyeraddr','tk-c-date','tk-c-invno'].forEach(function(id){ $(id).addEventListener('input',syncCustom); });
+		['tk-c-logo','tk-c-site','tk-c-seller','tk-c-phone','tk-c-buyer','tk-c-buyerphone','tk-c-buyeraddr','tk-c-date-y','tk-c-date-m','tk-c-date-d','tk-c-invno'].forEach(function(id){ $(id).addEventListener('input',syncCustom); });
 $('tk-c-logo').addEventListener('input',function(){
 var u=$('tk-c-logo').value.trim(); var w=$('tk-c-logo-warn');
 if(!u){ w.textContent=''; return; }
