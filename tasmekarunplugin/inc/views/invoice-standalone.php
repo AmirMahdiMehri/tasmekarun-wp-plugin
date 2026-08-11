@@ -3,7 +3,7 @@ defined( 'ABSPATH' ) || exit;
 $raw = (string) get_query_var( 'tk_inv' );
 $data = json_decode( base64_decode( strtr( $raw, '-_', '+/' ) ), true );
 if ( ! is_array( $data ) ) { status_header( 404 ); echo '<!doctype html><html dir="rtl"><body style="font-family:sans-serif;text-align:center;padding:60px">فاکتور نامعتبر است.</body></html>'; exit; }
-$brand = isset( $data['brand'] ) ? $data['brand'] : array();
+$brand = isset( $data['custom'] ) ? $data['custom'] : array();
 $on = ! empty( $brand['on'] );
 $meta = isset( $data['meta'] ) ? $data['meta'] : array();
 $store = $on ? ( ! empty( $brand['seller'] ) ? $brand['seller'] : 'فروشنده' ) : 'تسمه کارون';
@@ -48,7 +48,7 @@ tbody tr:nth-child(even){background:#f6f8f8}
 <div class="sheet">
 	<div class="inv-head">
 		<div class="inv-brand">
-			<?php if ( $logo ) { echo '<img class="inv-logo" src="' . esc_url( $logo ) . '" alt="">'; } else { echo '<svg class="inv-logo-svg" viewBox="0 0 64 64"><circle cx="32" cy="38" r="15" fill="none" stroke="#0E3A40" stroke-width="6"/><circle cx="32" cy="15" r="5" fill="#0E3A40"/><path d="M8 38a24 24 0 0 0 48 0" fill="none" stroke="#585D61" stroke-width="4" stroke-dasharray="4 4"/></svg>'; } ?>
+			<?php if ( $logo ) { echo '<img class="inv-logo" src="' . esc_url( $logo ) . '" alt="">'; } elseif ( ! $on ) { echo '<svg class="inv-logo-svg" viewBox="0 0 64 64"><circle cx="32" cy="38" r="15" fill="none" stroke="#0E3A40" stroke-width="6"/><circle cx="32" cy="15" r="5" fill="#0E3A40"/><path d="M8 38a24 24 0 0 0 48 0" fill="none" stroke="#585D61" stroke-width="4" stroke-dasharray="4 4"/></svg>'; } ?>
 			<div><div class="inv-title"><?php echo esc_html( $store ); ?></div><?php if ( $site ) echo '<div class="inv-sub">' . esc_html( $site ) . '</div>'; ?></div>
 		</div>
 		<div class="inv-meta"><div>پیش‌فاکتور شماره: <?php echo esc_html( $data['invNo'] ); ?></div><div>تاریخ: <?php echo esc_html( date_i18n( 'Y/m/d' ) ); ?></div></div>
@@ -62,7 +62,7 @@ tbody tr:nth-child(even){background:#f6f8f8}
 	<div class="inv-totals">جمع کل: <?php echo esc_html( number_format_i18n( $t['total'] ) ); ?> ریال
 		<?php if ( $t['disc'] > 0 ) echo '<br>تخفیف: −' . esc_html( number_format_i18n( $t['disc'] ) ) . ' ریال'; ?>
 		<br><span class="pay">مبلغ قابل پرداخت: <?php echo esc_html( number_format_i18n( $t['payable'] ) ); ?> ریال</span></div>
-	<div class="inv-foot"><span><?php echo $on ? esc_html( ! empty( $brand['seller'] ) ? $brand['seller'] : '' ) : ('تسمه کارون — ' . esc_html( $site )); ?></span><span><?php echo $on ? '' : ('تماس: ' . esc_html( isset( $meta['phone'] ) ? $meta['phone'] : '' )); ?></span></div>
+	<div class="inv-foot"><span><?php echo $on ? esc_html( ! empty( $brand['seller'] ) ? $brand['seller'] : '' ) : ('تسمه کارون — ' . esc_html( $site )); ?></span><span><?php echo $on ? ( ! empty( $brand['phone'] ) ? 'تماس: ' . esc_html( $brand['phone'] ) : '' ) : ('تماس: ' . esc_html( isset( $meta['phone'] ) ? $meta['phone'] : '' )); ?></span></div>
 </div>
 <script>
 (function(){

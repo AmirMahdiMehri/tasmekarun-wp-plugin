@@ -257,10 +257,10 @@ function tk_render_proforma() {
 		<button type="button" id="tk-pf-clear">پاک کردن</button>
 	</div>
 	<div id="tk-pf-custom" style="display:none;border:1px dashed #bbb;border-radius:10px;padding:12px;margin-top:8px;background:#fafafa">
-		<label><input type="checkbox" id="tk-c-on"> حالت شخصی‌سازی (حذف برند تسمه کارون)</label><br><br>
 		<label>لینک لوگو (اختیاری): <input id="tk-c-logo" dir="ltr" style="width:100%" placeholder="https://.../logo.png"></label><br><br>
 		<label>نام سایت (اختیاری): <input id="tk-c-site" dir="ltr" style="width:100%"></label><br><br>
-		<label>نام فروشگاه / فروشنده (اجباری): <input id="tk-c-seller" style="width:100%"></label>
+		<label>نام فروشگاه / فروشنده (اجباری): <input id="tk-c-seller" style="width:100%"></label><br><br>
+		<label>شماره تماس: <input id="tk-c-phone" dir="ltr" style="width:100%" placeholder="0912..."></label>
 	</div>
 	<table class="tk-specs" id="tk-pf-table" style="margin-top:14px">
 		<tr><th>کالا</th><th>برند</th><th>ضریب واحد <span id="tk-pf-pencilwrap"></span></th><th>قیمت تکی</th><th>تعداد</th><th>٪</th><th>جمع</th><th class="tk-del-col"></th></tr>
@@ -351,7 +351,16 @@ function tk_render_proforma() {
 			if(extraQ&&qty===1) qty=extraQ;
 			return {model:tokens.join(' '),brand:brandTok,qty:qty};
 		}
-		function addLines(t){ t.split('\n').forEach(function(l){ var p=splitLine(l.trim()); if(p&&p.model) state.rows.push({kind:'belt',model:p.model,brand:p.brand,qty:p.qty,coefOv:null,disc:null}); }); renderEditor(); }
+		function sortRows(){
+			state.rows.sort(function(a,b){
+				var ca=computeRow(a), cb=computeRow(b);
+				var ua=ca.ok?ca.unit:Infinity, ub=cb.ok?cb.unit:Infinity;
+				if(ua!==ub) return ua-ub;
+				var sa=ca.ok?ca.sku:'', sb=cb.ok?cb.sku:'';
+				return sa<sb?-1:(sa>sb?1:0);
+			});
+		}
+		function addLines(t){ t.split('\n').forEach(function(l){ var p=splitLine(l.trim()); if(p&&p.model) state.rows.push({kind:'belt',model:p.model,brand:p.brand,qty:p.qty,coefOv:null,disc:null}); }); sortRows(); renderEditor(); }
 
 		line.addEventListener('keydown',function(e){ if(e.key==='Enter'){e.preventDefault(); try{addLines(line.value);line.value='';}catch(err){tot.textContent='خطا: '+err.message;} } });
 		$('tk-add-misc').addEventListener('click',function(){ state.rows.push({kind:'misc',name:'',brand:'',price:0,qty:1,disc:null}); renderEditor(); });
@@ -359,9 +368,13 @@ function tk_render_proforma() {
 		$('tk-pf-clear').addEventListener('click',function(){ if(confirm('کل پیش‌فاکتور پاک شود؟')){state.rows=[];state.coefEdit=false;renderEditor();} });
 		defBrand.addEventListener('input',renderEditor);
 		discInp.addEventListener('input',function(){ state.disc=+discInp.value||0; renderEditor(); });
-		$('tk-pf-customize').addEventListener('click',function(){ customPanel.style.display=customPanel.style.display==='none'?'block':'none'; });
-		function syncCustom(){ state.custom={on:$('tk-c-on').checked,logo:$('tk-c-logo').value.trim(),site:$('tk-c-site').value.trim(),seller:$('tk-c-seller').value.trim()}; }
-		['tk-c-on','tk-c-logo','tk-c-site','tk-c-seller'].forEach(function(id){ $(id).addEventListener('input',syncCustom); });
+		$('tk-pf-customize').addEventListener('click',function(){
+			var open = customPanel.style.display==='none';
+			customPanel.style.display = open ? 'block' : 'none';
+			state.custom.on = open;
+		});
+		function syncCustom(){ state.custom.logo=$('tk-c-logo').value.trim(); state.custom.site=$('tk-c-site').value.trim(); state.custom.seller=$('tk-c-seller').value.trim(); state.custom.phone=$('tk-c-phone').value.trim(); }
+		['tk-c-logo','tk-c-site','tk-c-seller','tk-c-phone'].forEach(function(id){ $(id).addEventListener('input',syncCustom); });
 
 		$('tk-pf-view').addEventListener('click',function(){
 			var t=totals();
@@ -401,6 +414,7 @@ function tk_render_proforma() {
 			var coefCell=tr.querySelector('.c-coef'); if(coefCell) coefCell.textContent=cr.coef!=null?E.num(cr.coef):'—';
 			recalcTotals();
 		});
+		body.addEventListener('change',function(){ sortRows(); renderEditor(); });
 		body.addEventListener('keydown',function(e){
 			var inp=e.target.closest('input'); if(!inp) return;
 			var tr=inp.closest('tr');
