@@ -256,12 +256,28 @@ function tk_render_proforma() {
 		<button type="button" id="tk-pf-view">مشاهده فاکتور</button>
 		<button type="button" id="tk-pf-clear">پاک کردن</button>
 	</div>
-	<div id="tk-pf-custom" style="display:none;border:1px dashed #bbb;border-radius:10px;padding:12px;margin-top:8px;background:#fafafa">
-		<label>لینک لوگو (اختیاری): <input id="tk-c-logo" dir="ltr" style="width:100%" placeholder="https://.../logo.png"></label><br><br>
-		<label>نام سایت (اختیاری): <input id="tk-c-site" dir="ltr" style="width:100%"></label><br><br>
-		<label>نام فروشگاه / فروشنده (اجباری): <input id="tk-c-seller" style="width:100%"></label><br><br>
-		<label>شماره تماس: <input id="tk-c-phone" dir="ltr" style="width:100%" placeholder="0912..."></label>
-	</div>
+    <div id="tk-pf-custom" style="display:none;border:1px dashed #bbb;border-radius:10px;padding:12px;margin-top:8px;background:#fafafa">
+         <label class="tk-unit" style="margin-bottom:8px"><input type="checkbox" id="tk-c-on" checked><span class="tk-unit-track"><span class="tk-unit-knob"></span></span><span class="tk-unit-txt">حالت شخصی‌سازی (حذف برند تسمه کارون)</span></label>
+         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
+         <label style="flex:1;min-width:220px">وارد کردن پریست (اختیاری): <input id="tk-c-preset-in" dir="ltr" style="width:100%" placeholder="TKP1..."></label>
+         <button type="button" id="tk-c-preset-make" class="button">ساخت پریست</button>
+    </div>
+    <div style="display:flex;gap:14px;flex-wrap:wrap">
+     <div style="flex:1;min-width:240px">
+         <label>لینک لوگو (اختیاری): <input id="tk-c-logo" dir="ltr" style="width:100%" placeholder="https://.../logo.png"></label><br><br>
+         <label>نام سایت (اختیاری): <input id="tk-c-site" dir="ltr" style="width:100%"></label><br><br>
+         <label>نام فروشگاه / فروشنده (اجباری): <input id="tk-c-seller" style="width:100%"></label><br><br>
+         <label>شماره تماس (اختیاری): <input id="tk-c-phone" dir="ltr" style="width:100%" placeholder="0912..."></label>
+     </div>
+     <div style="flex:1;min-width:240px">
+         <label>نام خریدار (اختیاری): <input id="tk-c-buyer" style="width:100%"></label><br><br>
+         <label>شماره تماس مشتری (اختیاری): <input id="tk-c-buyerphone" dir="ltr" style="width:100%"></label><br><br>
+         <label>آدرس خریدار (اختیاری): <input id="tk-c-buyeraddr" style="width:100%"></label><br><br>
+         <label>تاریخ (اختیاری): <input id="tk-c-date" style="width:100%"></label><br><br>
+         <label>شماره فاکتور (اختیاری): <input id="tk-c-invno" dir="ltr" style="width:100%"></label>
+     </div>
+     </div>
+    </div>
 	<table class="tk-specs" id="tk-pf-table" style="margin-top:14px">
 		<tr><th>کالا</th><th>برند</th><th>ضریب واحد <span id="tk-pf-pencilwrap"></span></th><th>قیمت تکی</th><th>تعداد</th><th>٪</th><th>جمع</th><th class="tk-del-col"></th></tr>
 		<tbody id="tk-pf-body"></tbody>
@@ -298,7 +314,16 @@ function tk_render_proforma() {
 			var base;
 			if ( r.kind === 'misc' ){ var p=+r.price||0,q=+r.qty||1; base={ok:true,sku:r.name||'—',brand:r.brand||'',coef:null,unit:p,qty:q}; }
 			else if ( r.kind === 'custom' ){ var pp=E.parseSku(r.model); if(!pp) return {ok:false,msg:'مدل نامشخص'}; var u=E.unitFor(pp.section,pp,+r.coef||0); if(u===null) return {ok:false,msg:'فرمول نامشخص'}; base={ok:true,sku:E.skuOf(pp.section,pp),brand:r.brand||'دلخواه',coef:+r.coef||0,unit:u,qty:+r.qty||1}; }
-			else { var inf=E.compute(r.model,r.brand||defBrand.value,r.qty); if(!inf.ok) return {ok:false,msg:inf.msg}; var coef=(r.coefOv!=null?+r.coefOv:inf.coef); var p2=E.parseSku(r.model); var unit=E.unitFor(p2.section,p2,coef); base={ok:true,sku:inf.sku,brand:inf.brand,coef:coef,unit:unit,qty:+r.qty||1}; }
+			else {
+				var p2=E.parseSku(r.model); if(!p2) return {ok:false,msg:'مدل نامشخص'};
+				var sb2=E.splitBrand(r.brand||defBrand.value);
+				var engCoef=null; var inf2=E.compute(r.model,r.brand||defBrand.value,r.qty); if(inf2.ok) engCoef=inf2.coef;
+				var coef2=(r.coefOv!=null?+r.coefOv:engCoef);
+				if(coef2==null) return {ok:false,msg:'ضریب تعریف نشده؛ با ✎ ضریب بگذارید'};
+				var unit2=E.unitFor(p2.section,p2,coef2);
+				if(unit2===null) return {ok:false,msg:'فرمول نامشخص'};
+				base={ok:true,sku:E.skuOf(p2.section,p2),brand:sb2?sb2.b.name_fa:(r.brand||''),coef:coef2,unit:unit2,qty:+r.qty||1};
+			}
 			var gross = base.unit * base.qty;
 			var eff = ( r.disc != null && r.disc !== '' ) ? Math.min(100,Math.max(0,+r.disc)) : state.disc;
 			var net = gross * (1 - eff/100);
@@ -368,17 +393,42 @@ function tk_render_proforma() {
 		$('tk-pf-clear').addEventListener('click',function(){ if(confirm('کل پیش‌فاکتور پاک شود؟')){state.rows=[];state.coefEdit=false;renderEditor();} });
 		defBrand.addEventListener('input',renderEditor);
 		discInp.addEventListener('input',function(){ state.disc=+discInp.value||0; renderEditor(); });
+		var customTouched=false;
+		$('tk-c-on').addEventListener('change',function(){ state.custom.on=$('tk-c-on').checked; customTouched=true; });
 		$('tk-pf-customize').addEventListener('click',function(){
 			var open = customPanel.style.display==='none';
 			customPanel.style.display = open ? 'block' : 'none';
-			state.custom.on = open;
+			if ( open && !customTouched ){ state.custom.on = true; $('tk-c-on').checked = true; }
 		});
-		function syncCustom(){ state.custom.logo=$('tk-c-logo').value.trim(); state.custom.site=$('tk-c-site').value.trim(); state.custom.seller=$('tk-c-seller').value.trim(); state.custom.phone=$('tk-c-phone').value.trim(); }
-		['tk-c-logo','tk-c-site','tk-c-seller','tk-c-phone'].forEach(function(id){ $(id).addEventListener('input',syncCustom); });
+		function syncCustom(){
+			state.custom.logo=$('tk-c-logo').value.trim(); state.custom.site=$('tk-c-site').value.trim();
+			state.custom.seller=$('tk-c-seller').value.trim(); state.custom.phone=$('tk-c-phone').value.trim();
+			state.custom.buyer=$('tk-c-buyer').value.trim(); state.custom.buyerphone=$('tk-c-buyerphone').value.trim();
+			state.custom.buyeraddr=$('tk-c-buyeraddr').value.trim(); state.custom.date=$('tk-c-date').value.trim();
+			state.custom.invno=$('tk-c-invno').value.trim();
+		}
+		['tk-c-logo','tk-c-site','tk-c-seller','tk-c-phone','tk-c-buyer','tk-c-buyerphone','tk-c-buyeraddr','tk-c-date','tk-c-invno'].forEach(function(id){ $(id).addEventListener('input',syncCustom); });
+		$('tk-c-preset-make').addEventListener('click',function(){
+			syncCustom();
+			var p={logo:state.custom.logo,site:state.custom.site,seller:state.custom.seller,phone:state.custom.phone};
+			var enc='TKP1.'+btoa(unescape(encodeURIComponent(JSON.stringify(p)))).replace(/\+/g,'-').replace(/\//g,'_');
+			$('tk-c-preset-in').value=enc;
+			if(navigator.clipboard) navigator.clipboard.writeText(enc);
+			alert('پریست ساخته و کپی شد ✔ — آن را نگه دارید و دفعه بعد در «وارد کردن پریست» بگذارید.');
+		});
+		$('tk-c-preset-in').addEventListener('input',function(){
+			var v=$('tk-c-preset-in').value.trim();
+			if(v.indexOf('TKP1.')!==0) return;
+			try{
+				var p=JSON.parse(decodeURIComponent(escape(atob(v.slice(5).replace(/-/g,'+').replace(/_/g,'/')))));
+				$('tk-c-logo').value=p.logo||''; $('tk-c-site').value=p.site||''; $('tk-c-seller').value=p.seller||''; $('tk-c-phone').value=p.phone||'';
+				syncCustom();
+			}catch(e){}
+		});
 
 		$('tk-pf-view').addEventListener('click',function(){
 			var t=totals();
-			var payload={ invNo: state.invNo || ('TK-'+Date.now().toString().slice(-6)), totals:t, custom:state.custom, meta:META,
+			var payload={ invNo: (state.custom.invno) || state.invNo || ('TK-'+Date.now().toString().slice(-6)), totals:t, custom:state.custom, meta:META,
 				rows: state.rows.map(function(r){ var cr=computeRow(r); return { sku:cr.sku||'—', brand:cr.brand||'', coef:cr.coef!=null?cr.coef:null, unit:cr.unit||0, qty:cr.qty, disc:cr.effDisc||0, net:cr.net||0 }; }) };
 			state.invNo=payload.invNo;
 			var enc=btoa(unescape(encodeURIComponent(JSON.stringify(payload)))).replace(/\+/g,'-').replace(/\//g,'_');
@@ -387,7 +437,7 @@ function tk_render_proforma() {
 
 		pencilWrap.addEventListener('click',function(e){
 			if(e.target.classList.contains('tk-pencil')){ if(confirm('آیا مطمئن هستید می‌خواهید ضریب‌ها را تغییر دهید؟')){state.coefEdit=true;renderEditor();} }
-			else if(e.target.classList.contains('tk-apply')){ state.coefEdit=false; renderEditor(); }
+			else if(e.target.classList.contains('tk-apply')){ state.coefEdit=false; sortRows(); renderEditor(); }
 			else if(e.target.classList.contains('tk-cancel')){ state.rows.forEach(function(r){r.coefOv=null;}); state.coefEdit=false; renderEditor(); }
 		});
 		body.addEventListener('click',function(e){

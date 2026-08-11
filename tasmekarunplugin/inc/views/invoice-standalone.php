@@ -51,7 +51,7 @@ tbody tr:nth-child(even){background:#f6f8f8}
 			<?php if ( $logo ) { echo '<img class="inv-logo" src="' . esc_url( $logo ) . '" alt="">'; } elseif ( ! $on ) { echo '<svg class="inv-logo-svg" viewBox="0 0 64 64"><circle cx="32" cy="38" r="15" fill="none" stroke="#0E3A40" stroke-width="6"/><circle cx="32" cy="15" r="5" fill="#0E3A40"/><path d="M8 38a24 24 0 0 0 48 0" fill="none" stroke="#585D61" stroke-width="4" stroke-dasharray="4 4"/></svg>'; } ?>
 			<div><div class="inv-title"><?php echo esc_html( $store ); ?></div><?php if ( $site ) echo '<div class="inv-sub">' . esc_html( $site ) . '</div>'; ?></div>
 		</div>
-		<div class="inv-meta"><div>پیش‌فاکتور شماره: <?php echo esc_html( $data['invNo'] ); ?></div><div>تاریخ: <?php echo esc_html( date_i18n( 'Y/m/d' ) ); ?></div></div>
+		<div class="inv-meta"><div>پیش‌فاکتور شماره: <?php echo esc_html( $data['invNo'] ); ?></div><div>تاریخ: <?php echo esc_html( ! empty( $brand['date'] ) ? $brand['date'] : date_i18n( 'Y/m/d' ) ); ?></div></div>
 	</div>
 	<div class="inv-accent"></div>
 	<table><thead><tr><th>کالا</th><th>برند</th><th>ضریب واحد</th><th>قیمت تکی</th><th>تعداد</th><th>تخفیف</th><th>جمع</th></tr></thead><tbody>
@@ -59,6 +59,13 @@ tbody tr:nth-child(even){background:#f6f8f8}
 		<tr><td><?php echo esc_html( $r['sku'] ); ?></td><td><?php echo esc_html( $r['brand'] ); ?></td><td><?php echo $r['coef'] != null ? esc_html( number_format_i18n( $r['coef'] ) ) : '—'; ?></td><td><?php echo esc_html( number_format_i18n( $r['unit'] ) ); ?> ریال</td><td><?php echo esc_html( $r['qty'] ); ?></td><td><?php echo $r['disc'] > 0 ? esc_html( number_format_i18n( $r['disc'] ) . '٪' ) : '—'; ?></td><td><?php echo esc_html( number_format_i18n( $r['net'] ) ); ?> ریال</td></tr>
 	<?php endforeach; ?>
 	</tbody></table>
+	<?php if ( $on && ( ! empty( $brand['buyer'] ) || ! empty( $brand['buyerphone'] ) || ! empty( $brand['buyeraddr'] ) ) ) : ?>
+	<div style="padding:10px 26px;font-size:12px;line-height:2;border-top:1px dashed #ddd">
+		<?php if ( ! empty( $brand['buyer'] ) ) echo 'خریدار: ' . esc_html( $brand['buyer'] ) . '<br>'; ?>
+		<?php if ( ! empty( $brand['buyerphone'] ) ) echo 'تماس خریدار: ' . esc_html( $brand['buyerphone'] ) . '<br>'; ?>
+		<?php if ( ! empty( $brand['buyeraddr'] ) ) echo 'آدرس: ' . esc_html( $brand['buyeraddr'] ); ?>
+	</div>
+	<?php endif; ?>
 	<div class="inv-totals">جمع کل: <?php echo esc_html( number_format_i18n( $t['total'] ) ); ?> ریال
 		<?php if ( $t['disc'] > 0 ) echo '<br>تخفیف: −' . esc_html( number_format_i18n( $t['disc'] ) ) . ' ریال'; ?>
 		<br><span class="pay">مبلغ قابل پرداخت: <?php echo esc_html( number_format_i18n( $t['payable'] ) ); ?> ریال</span></div>
