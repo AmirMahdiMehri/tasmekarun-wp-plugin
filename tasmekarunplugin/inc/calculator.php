@@ -394,7 +394,6 @@ function tk_render_proforma() {
             return String(ca.brand||'').localeCompare(String(cb.brand||''),'fa');
             });
         }
-		}
 		function addLines(t){ t.split(String.fromCharCode(10)).forEach(function(l){ var p=splitLine(l.trim()); if(p&&p.model) state.rows.push({kind:'belt',model:p.model,brand:p.brand,qty:p.qty,coefOv:null,disc:null}); }); sortRows(); renderEditor(); }
 		line.addEventListener('keydown',function(e){ if(e.key==='Enter'){e.preventDefault(); try{addLines(line.value);line.value='';}catch(err){tot.textContent='خطا: '+err.message;} } });
 		$('tk-add-misc').addEventListener('click',function(){ state.rows.push({kind:'misc',name:'',brand:'',price:0,qty:1,disc:null}); renderEditor(); });
