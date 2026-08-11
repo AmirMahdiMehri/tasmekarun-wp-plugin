@@ -2,14 +2,14 @@
 /**
  * Plugin Name: Tasmekarun Dynamic Belt Engine
  * Description: موتور داینامیک فروشگاه تسمه کارون — کاتالوگ مجازی، قیمت ضریبی، موجودی و مدیای داینامیک
- * Version:     0.9.15
+ * Version:     0.9.16
  * Author:      Tasme Karun
  * Text Domain: tasmekarun
  * Requires PHP: 7.4
  */
 defined( 'ABSPATH' ) || exit;
 
-define( 'TK_VERSION', '0.9.15' );
+define( 'TK_VERSION', '0.9.16' );
 define( 'TK_PATH', plugin_dir_path( __FILE__ ) );
 define( 'TK_URL',  plugin_dir_url( __FILE__ ) );
 
@@ -21,6 +21,7 @@ add_action( 'plugins_loaded', 'tk_load_woo' );
 function tk_load_woo() {
 	if ( class_exists( 'WooCommerce' ) ) { require_once TK_PATH . 'inc/woo.php'; }
 }
+require_once TK_PATH . 'inc/modules.php';
 require_once TK_PATH . 'inc/frontend.php';
 if ( is_admin() ) { require_once TK_PATH . 'inc/admin.php'; }
 
