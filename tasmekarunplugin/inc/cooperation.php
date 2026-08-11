@@ -26,7 +26,7 @@ add_shortcode( 'tk_cooperation', 'tk_render_cooperation' );
 function tk_render_cooperation() {
 	$done = isset( $_GET['tk_coop'] ) && 'ok' === $_GET['tk_coop'];
 	ob_start();
-	include TK_PATH . 'views/cooperation.php';
+	include TK_PATH . 'inc/views/cooperation.php';
 	return ob_get_clean();
 }
 
