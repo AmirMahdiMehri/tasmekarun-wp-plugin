@@ -8,6 +8,7 @@ function tk_calc_assets() {
 		wp_enqueue_style( 'tk-shop', TK_URL . 'assets/tk-shop.css', array(), TK_VERSION );
 	}
 }
+
 add_filter( 'query_vars', 'tk_inv_qvar' );
 function tk_inv_qvar( $v ) { $v[] = 'tk_inv'; return $v; }
 add_filter( 'template_include', 'tk_inv_template', 99 );
@@ -65,12 +66,38 @@ function tk_brands_datalist() {
 
 /* ---------- موتور JS ---------- */
 function tk_calc_js_core() {
+	echo '<style>
+	.tk-unit{display:inline-flex;align-items:center;gap:8px;cursor:pointer;margin:0 8px}
+	.tk-unit input{display:none}
+	.tk-unit-track{width:46px;height:24px;border-radius:20px;background:#cfd8dc;position:relative;transition:.2s}
+	.tk-unit-knob{position:absolute;top:2px;right:2px;width:20px;height:20px;border-radius:50%;background:#fff;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.3)}
+	.tk-unit input:checked + .tk-unit-track{background:#2e9e44}
+	.tk-unit input:checked + .tk-unit-track .tk-unit-knob{right:24px}
+	.tk-unit-txt{font-size:13px;font-weight:700;color:#0e3a40}
+	</style>';
 	?>
 	<script>
 	function tkInit(TK){
 		var SECS = TK.sections.slice().sort(function(a,b){ return b.slug.length - a.slug.length; });
 		function fmt(n){ return Number(n||0).toLocaleString('fa-IR'); }
 		function hasFa(s){ return /[\u0600-\u06FF]/.test(s); }
+		function unitIsToman(){ return window.TK_UNIT === 'toman'; }
+		function conv(n){ n=+n||0; return unitIsToman()? Math.round(n/10) : Math.round(n); }
+		function unitLabel(){ return unitIsToman()? 'تومان' : 'ریال'; }
+		function num(n){ return fmt(conv(n)); }
+		function money(n){ return fmt(conv(n)) + ' ' + unitLabel(); }
+		function moneySpan(n){ return '<span data-rial="'+Math.round(n)+'">'+money(n)+'</span>'; }
+		function refreshUnitSpans(root){ (root||document).querySelectorAll('[data-rial]').forEach(function(s){ var v=+s.getAttribute('data-rial'); s.textContent = fmt(unitIsToman()? Math.round(v/10): Math.round(v)) + ' ' + unitLabel(); }); }
+		function bindUnitToggle(cb){
+			document.querySelectorAll('.tk-unit-toggle').forEach(function(t){
+				t.checked = (window.TK_UNIT==='toman');
+				t.addEventListener('change', function(){
+					window.TK_UNIT = t.checked ? 'toman' : 'rial';
+					document.querySelectorAll('.tk-unit-toggle').forEach(function(o){ o.checked = t.checked; });
+					if (cb) cb();
+				});
+			});
+		}
 		function secOf(slug){ for (var i=0;i<SECS.length;i++) if (SECS[i].slug===slug) return SECS[i]; return null; }
 		function unitFor(secSlug, parsed, coef){
 			var sec = secOf(secSlug); if ( ! sec ) return null;
@@ -103,8 +130,8 @@ function tk_calc_js_core() {
 				for ( var i=0;i<SECS.length;i++ ){
 					var sl = SECS[i].slug.toUpperCase();
 					if ( rest.indexOf(sl) === 0 ){
-						var num = rest.slice(sl.length);
-						if ( /^\d+(\.\d+)?$/.test(num) ) return { section:SECS[i].slug, size:+num, ribs:+m[1] };
+						var n2 = rest.slice(sl.length);
+						if ( /^\d+(\.\d+)?$/.test(n2) ) return { section:SECS[i].slug, size:+n2, ribs:+m[1] };
 					}
 				}
 			}
@@ -133,83 +160,21 @@ function tk_calc_js_core() {
 			return { ok:true, sku:skuOf(p.section,p), brand:sb.b.name_fa, coef:coef, unit:unit, qty:q, total:unit*q };
 		}
 		function attachBrandSuggest(inp){
-			var box = null, items = [], hi = -1;
-			function ensure(){
-				if ( box ) return box;
-				box = document.createElement('div');
-				box.style.cssText = 'position:absolute;background:#fff;border:1px solid #ddd;border-radius:8px;z-index:60;max-height:190px;overflow:auto;box-shadow:0 8px 20px rgba(0,0,0,.15);display:none';
-				inp.parentElement.style.position = 'relative';
-				inp.parentElement.appendChild(box);
-				box.addEventListener('mousedown', function(e){
-					var li = e.target.closest('[data-v]'); if ( ! li ) return;
-					e.preventDefault(); pick(li.getAttribute('data-v'));
-				});
-				return box;
-			}
-			function tokenAtCaret(){
-				var v = inp.value, c = inp.selectionStart === null ? v.length : inp.selectionStart;
-				var upto = v.slice(0, c);
-				var m = upto.match(/(\S*)$/);
-				var cur = m ? m[1] : '';
-				var prior = upto.slice(0, upto.length - cur.length).trim().length > 0;
-				return { cur: cur, prior: prior };
-			}
+			var box=null,items=[],hi=-1;
+			function ensure(){ if(box)return box; box=document.createElement('div'); box.style.cssText='position:absolute;background:#fff;border:1px solid #ddd;border-radius:8px;z-index:60;max-height:190px;overflow:auto;box-shadow:0 8px 20px rgba(0,0,0,.15);display:none'; inp.parentElement.style.position='relative'; inp.parentElement.appendChild(box); box.addEventListener('mousedown',function(e){ var li=e.target.closest('[data-v]'); if(!li)return; e.preventDefault(); pick(li.getAttribute('data-v')); }); return box; }
+			function tokenAtCaret(){ var v=inp.value,c=inp.selectionStart===null?v.length:inp.selectionStart; var upto=v.slice(0,c); var m=upto.match(/(\S*)$/); var cur=m?m[1]:''; var prior=upto.slice(0,upto.length-cur.length).trim().length>0; return {cur:cur,prior:prior}; }
 			function curTok(){ return tokenAtCaret().cur; }
-			function matches(cur){
-				var lc = cur.toLowerCase(), out = [];
-				for ( var i=0;i<TK.brands.length && out.length<6;i++ ){
-					var b = TK.brands[i], en = String(b.name_en||'').toLowerCase(), fa = String(b.name_fa||'');
-					if ( en.indexOf(lc) === 0 || fa.indexOf(cur) === 0 ) out.push(b);
-				}
-				return out;
-			}
-			function paint(){
-				if ( ! box ) return;
-				var html = '';
-				items.forEach(function(b,i){
-					var name = hasFa(curTok()) ? b.name_fa : b.name_en;
-					html += '<div data-v="'+name+'" style="padding:8px 12px;cursor:pointer;'+(i===hi?'background:#e8f0f5;':'')+'">'+b.name_fa+' <small style="color:#777">('+b.name_en+')</small></div>';
-				});
-				box.innerHTML = html;
-			}
-			function open(){
-				var t = tokenAtCaret();
-				if ( ! t.prior || ! t.cur || /^\d/.test(t.cur) || ! /[a-zA-Z\u0600-\u06FF]/.test(t.cur) ) { close(); return; }
-				items = matches(t.cur);
-				if ( ! items.length ) { close(); return; }
-				hi = -1;
-				var b = ensure();
-				b.style.top = (inp.offsetTop + inp.offsetHeight + 4) + 'px';
-				b.style.left = inp.offsetLeft + 'px';
-				b.style.width = Math.max(inp.offsetWidth, 200) + 'px';
-				b.style.display = 'block';
-				paint();
-			}
-			function close(){ if ( box ) box.style.display = 'none'; hi = -1; }
-			function isOpen(){ return box && box.style.display === 'block'; }
-			function pick(name){
-				var v = inp.value, c = inp.selectionStart === null ? v.length : inp.selectionStart;
-				var upto = v.slice(0, c), after = v.slice(c);
-				var m = upto.match(/(\S*)$/);
-				var start = m ? c - m[1].length : c;
-				inp.value = v.slice(0, start) + name + ' ' + after;
-				var pos = start + name.length + 1;
-				inp.focus(); inp.setSelectionRange(pos, pos);
-				close();
-				inp.dispatchEvent(new Event('input'));
-			}
-			inp.addEventListener('input', open);
-			inp.addEventListener('keydown', function(e){
-				if ( ! isOpen() ) return;
-				if ( e.key === 'ArrowDown' ){ e.preventDefault(); hi = (hi+1) % items.length; paint(); }
-				else if ( e.key === 'ArrowUp' ){ e.preventDefault(); hi = (hi-1+items.length) % items.length; paint(); }
-				else if ( e.key === 'Tab' ){ e.preventDefault(); if(items.length) pick( hasFa(curTok()) ? items[hi>=0?hi:0].name_fa : items[hi>=0?hi:0].name_en ); }
-				else if ( e.key === 'Escape' ){ close(); }
-				else if ( e.key === 'Enter' ){ close(); }
-			});
-			document.addEventListener('click', function(e){ if ( box && ! box.contains(e.target) && e.target !== inp ) close(); });
+			function matches(cur){ var lc=cur.toLowerCase(),out=[]; for(var i=0;i<TK.brands.length&&out.length<6;i++){ var b=TK.brands[i],en=String(b.name_en||'').toLowerCase(),fa=String(b.name_fa||''); if(en.indexOf(lc)===0||fa.indexOf(cur)===0)out.push(b);} return out; }
+			function paint(){ if(!box)return; var html=''; items.forEach(function(b,i){ var name=hasFa(curTok())?b.name_fa:b.name_en; html+='<div data-v="'+name+'" style="padding:8px 12px;cursor:pointer;'+(i===hi?'background:#e8f0f5;':'')+'">'+b.name_fa+' <small style="color:#777">('+b.name_en+')</small></div>'; }); box.innerHTML=html; }
+			function open(){ var t=tokenAtCaret(); if(!t.prior||!t.cur||/^\d/.test(t.cur)||!/[a-zA-Z\u0600-\u06FF]/.test(t.cur)){close();return;} items=matches(t.cur); if(!items.length){close();return;} hi=-1; var b=ensure(); b.style.top=(inp.offsetTop+inp.offsetHeight+4)+'px'; b.style.left=inp.offsetLeft+'px'; b.style.width=Math.max(inp.offsetWidth,200)+'px'; b.style.display='block'; paint(); }
+			function close(){ if(box)box.style.display='none'; hi=-1; }
+			function isOpen(){ return box&&box.style.display==='block'; }
+			function pick(name){ var v=inp.value,c=inp.selectionStart===null?v.length:inp.selectionStart; var upto=v.slice(0,c),after=v.slice(c); var m=upto.match(/(\S*)$/); var start=m?c-m[1].length:c; inp.value=v.slice(0,start)+name+' '+after; var pos=start+name.length+1; inp.focus(); inp.setSelectionRange(pos,pos); close(); inp.dispatchEvent(new Event('input')); }
+			inp.addEventListener('input',open);
+			inp.addEventListener('keydown',function(e){ if(!isOpen())return; if(e.key==='ArrowDown'){e.preventDefault();hi=(hi+1)%items.length;paint();} else if(e.key==='ArrowUp'){e.preventDefault();hi=(hi-1+items.length)%items.length;paint();} else if(e.key==='Tab'){e.preventDefault(); if(items.length)pick(hasFa(curTok())?items[hi>=0?hi:0].name_fa:items[hi>=0?hi:0].name_en);} else if(e.key==='Escape'){close();} else if(e.key==='Enter'){close();} });
+			document.addEventListener('click',function(e){ if(box&&!box.contains(e.target)&&e.target!==inp)close(); });
 		}
-		return { fmt:fmt, splitBrand:splitBrand, parseSku:parseSku, compute:compute, attachBrandSuggest:attachBrandSuggest, secOf:secOf, unitFor:unitFor, skuOf:skuOf };
+		return { fmt:fmt, num:num, money:money, moneySpan:moneySpan, refreshUnitSpans:refreshUnitSpans, bindUnitToggle:bindUnitToggle, splitBrand:splitBrand, parseSku:parseSku, compute:compute, attachBrandSuggest:attachBrandSuggest, secOf:secOf, unitFor:unitFor, skuOf:skuOf };
 	}
 	</script>
 	<?php
@@ -225,8 +190,9 @@ function tk_render_calculator() {
 	<div class="tk-shop" dir="rtl">
 	<h1>محاسبه‌گر قیمت تسمه</h1>
 	<?php tk_tools_nav(); ?>
+	<label class="tk-unit"><input type="checkbox" class="tk-unit-toggle"><span class="tk-unit-track"><span class="tk-unit-knob"></span></span><span class="tk-unit-txt">تومان</span></label>
 	<input id="tk-c-line" style="padding:12px;width:100%;max-width:560px"
-		placeholder="مدل و سایز (چسبیده) + برند + تعداد — مثال: a25 تایگر 12">
+		placeholder="مدل+سایز (چسبیده) + برند (اختیاری) + تعداد | Enter = ثبت خط | مثال: a25 تایگر 12">
 	<div id="tk-c-result" style="margin-top:18px"></div>
 	</div>
 	<script>
@@ -235,6 +201,7 @@ function tk_render_calculator() {
 		var E = tkInit(TK);
 		var line = document.getElementById('tk-c-line'), box = document.getElementById('tk-c-result');
 		E.attachBrandSuggest(line);
+		E.bindUnitToggle(function(){ run(); });
 		function run(){
 			var v = line.value.trim();
 			if ( ! v ) { box.innerHTML = ''; return; }
@@ -249,8 +216,8 @@ function tk_render_calculator() {
 			if ( extraQ && qty === 1 ) qty = extraQ;
 			var r = E.compute(tokens.join(' '), brandName, qty);
 			if ( ! r.ok ) { box.innerHTML = '<div style="border:1px solid #f3c1c1;background:#fdecea;color:#b32d2e;border-radius:10px;padding:12px 16px">' + r.msg + '</div>'; return; }
-			var extra = r.qty > 1 ? ' | تعداد: ' + E.fmt(r.qty) + ' | <strong>قیمت کل: ' + E.fmt(r.total) + ' ریال</strong>' : '';
-			box.innerHTML = '<div style="border:1px solid #ddd;border-radius:10px;padding:16px;background:#fff"><strong>تسمه ' + r.sku + ' — ' + r.brand + '</strong><div style="margin:8px 0">ضریب واحد: ' + E.fmt(r.coef) + ' | قیمت واحد: ' + E.fmt(r.unit) + ' ریال' + extra + '</div></div>';
+			var extra = r.qty > 1 ? ' | تعداد: ' + E.fmt(r.qty) + ' | <strong>قیمت کل: ' + E.money(r.total) + '</strong>' : '';
+			box.innerHTML = '<div style="border:1px solid #ddd;border-radius:10px;padding:16px;background:#fff"><strong>تسمه ' + r.sku + ' — ' + r.brand + '</strong><div style="margin:8px 0">ضریب واحد: ' + E.num(r.coef) + ' | قیمت واحد: ' + E.money(r.unit) + extra + '</div></div>';
 		}
 		line.addEventListener('input', function(){ try { run(); } catch (e) { box.textContent = 'خطا: ' + e.message; } });
 	})();
@@ -259,7 +226,7 @@ function tk_render_calculator() {
 	return ob_get_clean();
 }
 
-/* ---------- پیش‌فاکتور حرفه‌ای ---------- */
+/* ---------- پیش‌فاکتور ---------- */
 add_shortcode( 'tk_proforma', 'tk_render_proforma' );
 function tk_render_proforma() {
 	$data = wp_json_encode( tk_client_data() );
@@ -276,6 +243,7 @@ function tk_render_proforma() {
 	<h1>پیش‌فاکتور — تسمه کارون</h1>
 	<?php tk_tools_nav(); ?>
 	<div style="margin-bottom:10px">
+		<label class="tk-unit"><input type="checkbox" class="tk-unit-toggle"><span class="tk-unit-track"><span class="tk-unit-knob"></span></span><span class="tk-unit-txt">تومان</span></label>
 		<label>برند پیشفرض: <input id="tk-pf-brand" list="tk-brands-list" placeholder="مثلاً تایگر (اختیاری)" style="padding:10px;min-width:180px"></label>
 		<?php tk_brands_datalist(); ?>
 	</div>
@@ -320,6 +288,7 @@ function tk_render_proforma() {
 		var body = $('tk-pf-body'), sumBox = $('tk-pf-sum'), tot = $('tk-pf-total');
 		var pencilWrap = $('tk-pf-pencilwrap'), customPanel = $('tk-pf-custom'), discInp = $('tk-pf-disc');
 		E.attachBrandSuggest(line);
+		E.bindUnitToggle(function(){ renderEditor(); });
 		var state = { rows: [], invNo: '', disc: 0, custom: { on:false, logo:'', site:'', seller:'' }, coefEdit: false };
 
 		function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
@@ -350,12 +319,12 @@ function tk_render_proforma() {
 				html+='<td><input data-col="brand" value="'+escAttr(r.brand||'')+'" placeholder="برند" style="width:80px"></td>';
 				if(r.kind==='misc') html+='<td>—</td>';
 				else if(r.kind==='custom') html+='<td><input data-col="coef" type="number" value="'+(r.coef||0)+'" style="width:80px"></td>';
-				else html+=( state.coefEdit ? '<td><input data-col="coefov" type="number" value="'+(cr.coef!=null?cr.coef:0)+'" style="width:80px"></td>' : '<td class="c-coef">'+(cr.coef!=null?E.fmt(cr.coef):'—')+'</td>' );
+				else html+=( state.coefEdit ? '<td><input data-col="coefov" type="number" value="'+(cr.coef!=null?cr.coef:0)+'" style="width:80px"></td>' : '<td class="c-coef">'+(cr.coef!=null?E.num(cr.coef):'—')+'</td>' );
 				if(r.kind==='misc') html+='<td><input data-col="price" type="number" value="'+(r.price||0)+'" style="width:90px"></td>';
-				else html+='<td class="c-unit">'+(cr.ok?E.fmt(cr.unit)+' ریال':'—')+'</td>';
+				else html+='<td class="c-unit">'+(cr.ok?E.money(cr.unit):'—')+'</td>';
 				html+='<td><input data-col="qty" type="number" min="1" value="'+(r.qty||1)+'" style="width:55px"></td>';
 				html+='<td><button type="button" class="tk-discbtn">'+(cr.effDisc>0?E.fmt(cr.effDisc)+'٪':'٪')+'</button><input class="tk-discinp" data-col="disc" type="number" min="0" max="100" style="display:none;width:60px" value="'+(r.disc!=null?r.disc:'')+'" placeholder="پیش‌فرض"></td>';
-				html+='<td class="c-total">'+(cr.ok?E.fmt(cr.net)+' ریال':'—')+'</td>';
+				html+='<td class="c-total">'+(cr.ok?E.money(cr.net):'—')+'</td>';
 				html+='<td class="tk-del"><button type="button" class="button button-small tk-del-btn">حذف</button></td></tr>';
 			});
 			body.innerHTML=html;
@@ -366,10 +335,10 @@ function tk_render_proforma() {
 		}
 		function recalcTotals(){
 			var t=totals();
-			var html='جمع کل: '+E.fmt(t.total)+' ریال';
-			if(t.disc>0) html+='<br>تخفیف: −'+E.fmt(t.disc)+' ریال';
+			var html='جمع کل: '+E.money(t.total);
+			if(t.disc>0) html+='<br>تخفیف: −'+E.money(t.disc);
 			sumBox.innerHTML=html;
-			tot.textContent='مبلغ قابل پرداخت: '+E.fmt(t.payable)+' ریال';
+			tot.textContent='مبلغ قابل پرداخت: '+E.money(t.payable);
 		}
 		function splitLine(l){
 			var tokens=l.split(/\s+/).filter(function(s){return s;});
@@ -427,9 +396,9 @@ function tk_render_proforma() {
 			else if(col==='coefov') r.coefOv=e.target.value===''?null:+e.target.value;
 			else if(col==='disc'){ r.disc=e.target.value===''?null:+e.target.value; }
 			var cr=computeRow(r);
-			tr.querySelector('.c-unit').textContent=cr.ok?E.fmt(cr.unit)+' ریال':'—';
-			tr.querySelector('.c-total').textContent=cr.ok?E.fmt(cr.net)+' ریال':'—';
-			var coefCell=tr.querySelector('.c-coef'); if(coefCell) coefCell.textContent=cr.coef!=null?E.fmt(cr.coef):'—';
+			tr.querySelector('.c-unit').textContent=cr.ok?E.money(cr.unit):'—';
+			tr.querySelector('.c-total').textContent=cr.ok?E.money(cr.net):'—';
+			var coefCell=tr.querySelector('.c-coef'); if(coefCell) coefCell.textContent=cr.coef!=null?E.num(cr.coef):'—';
 			recalcTotals();
 		});
 		body.addEventListener('keydown',function(e){
@@ -462,6 +431,7 @@ function tk_render_pricelist() {
 	<div class="tk-shop" dir="rtl">
 	<h1>لیست قیمت به‌روز</h1>
 	<?php tk_tools_nav(); ?>
+	<label class="tk-unit"><input type="checkbox" class="tk-unit-toggle"><span class="tk-unit-track"><span class="tk-unit-knob"></span></span><span class="tk-unit-txt">تومان</span></label>
 	<input id="tk-pl-search" placeholder="جستجوی برند + سری — مثال: تایگر a" style="padding:10px;min-width:260px;margin-bottom:12px">
 	<div style="max-height:70vh;overflow:auto">
 	<?php
@@ -474,12 +444,12 @@ function tk_render_pricelist() {
 			elseif ( $pid && isset( $pm[ $pid ][ $s->id ] ) ) { $coef = $pm[ $pid ][ $s->id ]; }
 			elseif ( isset( $lg[ $b->id ][ $s->id ] ) ) { $coef = $lg[ $b->id ][ $s->id ]; }
 			if ( null === $coef || $coef <= 0 ) { continue; }
-			$rows_html .= '<tr data-s="' . esc_attr( strtolower( $s->slug ) ) . '"><td>' . esc_html( $s->slug ) . '</td><td>' . esc_html( number_format_i18n( $coef ) ) . '</td></tr>';
+			$rows_html .= '<tr data-s="' . esc_attr( strtolower( $s->slug ) ) . '"><td>' . esc_html( $s->slug ) . '</td><td><span data-rial="' . esc_attr( $coef ) . '">' . esc_html( number_format_i18n( $coef ) ) . '</span></td></tr>';
 		}
 		if ( ! $rows_html ) { continue; }
 		echo '<details class="tk-pl-brand" data-b="' . esc_attr( mb_strtolower( $b->name_fa ) . '|' . strtolower( $b->name_en ) ) . '" style="margin-bottom:6px">';
 		echo '<summary style="padding:10px 14px;cursor:pointer;background:#fff;border:1px solid #ddd;border-radius:8px;list-style:none">' . esc_html( $b->name_fa ) . ' (' . esc_html( $b->name_en ) . ')</summary>';
-		echo '<table class="tk-specs"><tr><th>سری</th><th>ضریب (ریال)</th></tr>' . $rows_html . '</table></details>';
+		echo '<table class="tk-specs" id="tk-pl-table"><tr><th>سری</th><th id="tk-pl-unithead">ضریب (ریال)</th></tr>' . $rows_html . '</table></details>';
 	}
 	?>
 	</div>
@@ -503,6 +473,17 @@ function tk_render_pricelist() {
 			});
 		}
 		s.addEventListener('input', apply);
+		document.querySelectorAll('.tk-unit-toggle').forEach(function(t){
+			t.addEventListener('change', function(){
+				var toman = t.checked;
+				document.querySelectorAll('.tk-unit-toggle').forEach(function(o){ o.checked = toman; });
+				document.querySelectorAll('[data-rial]').forEach(function(sp){
+					var v = +sp.getAttribute('data-rial');
+					sp.textContent = Number(toman ? Math.round(v/10) : Math.round(v)).toLocaleString('fa-IR');
+				});
+				var h = document.getElementById('tk-pl-unithead'); if (h) h.textContent = 'ضریب (' + (toman?'تومان':'ریال') + ')';
+			});
+		});
 	})();
 	</script>
 	<?php

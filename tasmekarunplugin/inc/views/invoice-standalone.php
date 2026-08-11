@@ -16,6 +16,7 @@ $rows = isset( $data['rows'] ) ? $data['rows'] : array();
 <title>فاکتور <?php echo esc_html( $data['invNo'] ); ?></title>
 <style id="pagecss">@page{size:A4 portrait;margin:10mm}</style>
 <style>
+*{ -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
 body{margin:0;background:#e9edee;font-family:inherit}
 .tk-bar{position:sticky;top:0;display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 16px;background:#0E3A40;color:#fff;z-index:9}
 .tk-bar button{border:none;border-radius:8px;padding:8px 14px;cursor:pointer;font-weight:700;background:#ffffff22;color:#fff}
@@ -75,11 +76,21 @@ tbody tr:nth-child(even){background:#f6f8f8}
 	document.getElementById('btn-a4').addEventListener('click',function(){setSize('a4');});
 	document.getElementById('btn-a5').addEventListener('click',function(){setSize('a5');});
 	document.getElementById('btn-print').addEventListener('click',function(){window.print();});
+	function copyText(u){
+		function done(){ alert('لینک فاکتور کپی شد ✔'); }
+		function fallback(){
+			var ta=document.createElement('textarea'); ta.value=u; ta.style.position='fixed'; ta.style.opacity='0';
+			document.body.appendChild(ta); ta.select();
+			try{ document.execCommand('copy'); done(); }catch(e){ prompt('لینک را کپی کنید:', u); }
+			document.body.removeChild(ta);
+		}
+		if ( navigator.clipboard && window.isSecureContext ) navigator.clipboard.writeText(u).then(done, fallback);
+		else fallback();
+	}
 	document.getElementById('btn-share').addEventListener('click',function(){
 		var u=location.href;
-		if(navigator.clipboard) navigator.clipboard.writeText(u);
-		if(navigator.share){ navigator.share({title:document.title,url:u}).catch(function(){}); }
-		else{ alert('لینک فاکتور کپی شد ✔'); }
+		copyText(u);
+		if ( navigator.share ) navigator.share({title:document.title,url:u}).catch(function(){});
 	});
 })();
 </script>
