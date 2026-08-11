@@ -267,7 +267,7 @@ function tk_render_proforma() {
     </div>
     <div style="display:flex;gap:14px;flex-wrap:wrap">
      <div style="flex:1;min-width:240px">
-         <label>لینک لوگو (اختیاری): <input id="tk-c-logo" dir="ltr" style="width:100%" placeholder="https://.../logo.png"></label><br><br>
+         <label>لینک لوگو (اختیاری): <input id="tk-c-logo" dir="ltr" style="width:100%" placeholder="https://.../logo.png | .svg | .jpg | .jpeg | .webp | .avif"></label><span id="tk-c-logo-warn" style="display:block;color:#b32d2e;font-size:12px"></span><br><br>
          <label>نام سایت (اختیاری): <input id="tk-c-site" dir="ltr" style="width:100%"></label><br><br>
          <label>نام فروشگاه / فروشنده (اجباری): <input id="tk-c-seller" style="width:100%"></label><br><br>
          <label>شماره تماس (اختیاری): <input id="tk-c-phone" dir="ltr" style="width:100%" placeholder="0912..."></label>
@@ -287,6 +287,7 @@ function tk_render_proforma() {
 	</table>
 	<div style="margin-top:14px;max-width:460px">
 		<label>درصد تخفیف پیش‌فرض: <input id="tk-pf-disc" type="number" min="0" max="100" value="" placeholder="0" style="width:80px"></label>
+<label class="tk-unit"><input type="checkbox" id="tk-pf-sort" checked><span class="tk-unit-track"><span class="tk-unit-knob"></span></span><span class="tk-unit-txt">مرتب‌سازی خودکار</span></label>
 		<div id="tk-pf-sum" style="margin-top:8px;font-size:15px;line-height:2"></div>
 		<div id="tk-pf-total" style="margin-top:6px;font-size:20px;font-weight:800;color:#0e3a40"></div>
 	</div>
@@ -308,7 +309,7 @@ function tk_render_proforma() {
 		var pencilWrap = $('tk-pf-pencilwrap'), customPanel = $('tk-pf-custom'), discInp = $('tk-pf-disc');
 		E.attachBrandSuggest(line);
 		E.bindUnitToggle(function(){ renderEditor(); });
-		var state = { rows: [], invNo: '', disc: 0, custom: { on:false, logo:'', site:'', seller:'' }, coefEdit: false };
+		var state = { rows: [], invNo: '', disc: 0, custom: { on:false, logo:'', site:'', seller:'' }, coefEdit: false, sortOn: true, seq: 0 };
 
 		function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 		function escAttr(s){ return esc(s).replace(/"/g,'&quot;'); }
@@ -377,10 +378,11 @@ function tk_render_proforma() {
 			for(var i=0;i<tokens.length;i++){ var sb=E.splitBrand(tokens[i]); if(sb){brandTok=tokens[i];extraQ=sb.q;idx=i;break;} }
 			if(idx>-1) tokens.splice(idx,1);
 			if(extraQ&&qty===1) qty=extraQ;
-			return {model:tokens.join(' '),brand:brandTok,qty:qty};
+			return {model:tokens.join(' ').toUpperCase(),brand:brandTok,qty:qty};
 		}
 		function sortRows(){
             state.rows.sort(function(a,b){
+            if(!state.sortOn) return (a.seq||0)-(b.seq||0);
             var ca=computeRow(a), cb=computeRow(b);
             var sa=ca.sec?E.secOf(ca.sec):null, sb=cb.sec?E.secOf(cb.sec):null;
             var oa=E.catOrder(sa), ob=E.catOrder(sb);
@@ -394,13 +396,14 @@ function tk_render_proforma() {
             return String(ca.brand||'').localeCompare(String(cb.brand||''),'fa');
             });
         }
-		function addLines(t){ t.split(String.fromCharCode(10)).forEach(function(l){ var p=splitLine(l.trim()); if(p&&p.model) state.rows.push({kind:'belt',model:p.model,brand:p.brand,qty:p.qty,coefOv:null,disc:null}); }); sortRows(); renderEditor(); }
+		function addLines(t){ t.split(String.fromCharCode(10)).forEach(function(l){ var p=splitLine(l.trim()); if(p&&p.model) state.rows.push({kind:'belt',model:p.model,brand:p.brand,qty:p.qty,coefOv:null,disc:null,seq:++state.seq}); }); sortRows(); renderEditor(); }
 		line.addEventListener('keydown',function(e){ if(e.key==='Enter'){e.preventDefault(); try{addLines(line.value);line.value='';}catch(err){tot.textContent='خطا: '+err.message;} } });
-		$('tk-add-misc').addEventListener('click',function(){ state.rows.push({kind:'misc',name:'',brand:'',price:0,qty:1,disc:null}); renderEditor(); });
-		$('tk-add-custom').addEventListener('click',function(){ state.rows.push({kind:'custom',model:'',brand:'',coef:0,qty:1,disc:null}); renderEditor(); });
+		$('tk-add-misc').addEventListener('click',function(){ state.rows.push({kind:'misc',name:'',brand:'',price:0,qty:1,disc:null,seq:++state.seq}); renderEditor(); });
+		$('tk-add-custom').addEventListener('click',function(){ state.rows.push({kind:'custom',model:'',brand:'',coef:0,qty:1,disc:null,seq:++state.seq}); renderEditor(); });
 		$('tk-pf-clear').addEventListener('click',function(){ if(confirm('کل پیش‌فاکتور پاک شود؟')){state.rows=[];state.coefEdit=false;renderEditor();} });
 		defBrand.addEventListener('input',renderEditor);
 		discInp.addEventListener('input',function(){ state.disc=+discInp.value||0; renderEditor(); });
+        $('tk-pf-sort').addEventListener('change',function(){ state.sortOn=$('tk-pf-sort').checked; sortRows(); renderEditor(); });
 		var customTouched=false;
 		$('tk-c-on').addEventListener('change',function(){ state.custom.on=$('tk-c-on').checked; customTouched=true; });
 		$('tk-pf-customize').addEventListener('click',function(){
@@ -416,6 +419,13 @@ function tk_render_proforma() {
 			state.custom.invno=$('tk-c-invno').value.trim();
 		}
 		['tk-c-logo','tk-c-site','tk-c-seller','tk-c-phone','tk-c-buyer','tk-c-buyerphone','tk-c-buyeraddr','tk-c-date','tk-c-invno'].forEach(function(id){ $(id).addEventListener('input',syncCustom); });
+$('tk-c-logo').addEventListener('input',function(){
+var u=$('tk-c-logo').value.trim(); var w=$('tk-c-logo-warn');
+if(!u){ w.textContent=''; return; }
+var m=u.match(/\.([a-z0-9]+)(\?|#|$)/i);
+var ok=['png','jpg','jpeg','svg','webp','avif','gif','bmp','ico'];
+if(m && ok.indexOf(m[1].toLowerCase())===-1){ w.textContent='فرمت .'+m[1]+' پشتیبانی نمی‌شود؛ فرمت‌های مجاز: '+ok.join('، '); } else { w.textContent=''; }
+});
 		$('tk-c-preset-make').addEventListener('click',function(){
 			syncCustom();
 			var p={logo:state.custom.logo,site:state.custom.site,seller:state.custom.seller,phone:state.custom.phone};
@@ -458,7 +468,7 @@ function tk_render_proforma() {
 			var tr=e.target.closest('tr'); if(!tr) return;
 			var i=+tr.getAttribute('data-i'), r=state.rows[i], col=e.target.getAttribute('data-col');
 			if(!r) return;
-			if(col==='model'){ if(r.kind==='misc') r.name=e.target.value; else r.model=e.target.value; }
+			if(col==='model'){ if(r.kind==='misc'){ r.name=e.target.value; } else { var up=e.target.value.toUpperCase(); if(up!==e.target.value){ var ss=e.target.selectionStart||up.length; e.target.value=up; try{e.target.setSelectionRange(ss,ss);}catch(_e){} } r.model=up; } }
 			else if(col==='brand') r.brand=e.target.value;
 			else if(col==='qty') r.qty=+e.target.value||1;
 			else if(col==='price') r.price=+e.target.value||0;
