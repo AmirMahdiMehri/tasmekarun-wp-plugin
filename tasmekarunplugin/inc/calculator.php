@@ -34,7 +34,7 @@ function tk_tools_nav() {
 function tk_client_data() {
 	global $wpdb; $p = $wpdb->prefix;
 	$brands = $wpdb->get_results( "SELECT id, name_fa, name_en, default_preset_id FROM {$p}tk_brands WHERE active=1" );
-	$sections = $wpdb->get_results( "SELECT id, slug, formula_key, min_charge FROM {$p}tk_sections WHERE active=1" );
+	$sections = $wpdb->get_results( "SELECT id, category_id, slug, formula_key, min_charge FROM {$p}tk_sections WHERE active=1" );
 	$pm = array();
 	foreach ( $wpdb->get_results( "SELECT preset_id, section_id, coef FROM {$p}tk_preset_coefs" ) as $r ) { $pm[ $r->preset_id ][ $r->section_id ] = (float) $r->coef; }
 	$lg = array();
@@ -53,7 +53,7 @@ function tk_client_data() {
 		}
 		$coef[ (int) $b->id ] = $m;
 	}
-	return array( 'brands' => $brands, 'sections' => $sections, 'coef' => $coef );
+	return array( 'brands' => $brands, 'sections' => $sections, 'coef' => $coef, 'cats' => $wpdb->get_results( "SELECT id FROM {$p}tk_categories ORDER BY id" ) );
 }
 
 function tk_brands_datalist() {
@@ -99,6 +99,9 @@ function tk_calc_js_core() {
 			});
 		}
 		function secOf(slug){ for (var i=0;i<SECS.length;i++) if (SECS[i].slug===slug) return SECS[i]; return null; }
+            var CATS = TK.cats||[]; var catIdx={}; CATS.forEach(function(c,i){ catIdx[c.id]=i; });
+        function catOrder(sec){ return sec ? (catIdx[sec.category_id]!=null?catIdx[sec.category_id]:999) : 100000; }
+        function copyText(u){ function fallback(){ var ta=document.createElement('textarea'); ta.value=u; ta.style.position='fixed'; ta.style.opacity='0'; document.body.appendChild(ta); ta.select(); try{ document.execCommand('copy'); }catch(e){} document.body.removeChild(ta); } if ( navigator.clipboard && window.isSecureContext ) { navigator.clipboard.writeText(u).then(function(){}, fallback); } else fallback(); }
 		function unitFor(secSlug, parsed, coef){
 			var sec = secOf(secSlug); if ( ! sec ) return null;
 			var len = Math.max(parsed.size, parseInt(sec.min_charge||0,10)||0);
@@ -174,7 +177,7 @@ function tk_calc_js_core() {
 			inp.addEventListener('keydown',function(e){ if(!isOpen())return; if(e.key==='ArrowDown'){e.preventDefault();hi=(hi+1)%items.length;paint();} else if(e.key==='ArrowUp'){e.preventDefault();hi=(hi-1+items.length)%items.length;paint();} else if(e.key==='Tab'){e.preventDefault(); if(items.length)pick(hasFa(curTok())?items[hi>=0?hi:0].name_fa:items[hi>=0?hi:0].name_en);} else if(e.key==='Escape'){close();} else if(e.key==='Enter'){close();} });
 			document.addEventListener('click',function(e){ if(box&&!box.contains(e.target)&&e.target!==inp)close(); });
 		}
-		return { fmt:fmt, num:num, money:money, moneySpan:moneySpan, refreshUnitSpans:refreshUnitSpans, bindUnitToggle:bindUnitToggle, splitBrand:splitBrand, parseSku:parseSku, compute:compute, attachBrandSuggest:attachBrandSuggest, secOf:secOf, unitFor:unitFor, skuOf:skuOf };
+		return { fmt:fmt, num:num, money:money, moneySpan:moneySpan, refreshUnitSpans:refreshUnitSpans, bindUnitToggle:bindUnitToggle, splitBrand:splitBrand, parseSku:parseSku, compute:compute, attachBrandSuggest:attachBrandSuggest, secOf:secOf, unitFor:unitFor, skuOf:skuOf, catOrder:catOrder, copyText:copyText };
 	}
 	</script>
 	<?php
@@ -312,8 +315,8 @@ function tk_render_proforma() {
 
 		function computeRow(r){
 			var base;
-			if ( r.kind === 'misc' ){ var p=+r.price||0,q=+r.qty||1; base={ok:true,sku:r.name||'—',brand:r.brand||'',coef:null,unit:p,qty:q}; }
-			else if ( r.kind === 'custom' ){ var pp=E.parseSku(r.model); if(!pp) return {ok:false,msg:'مدل نامشخص'}; var u=E.unitFor(pp.section,pp,+r.coef||0); if(u===null) return {ok:false,msg:'فرمول نامشخص'}; base={ok:true,sku:E.skuOf(pp.section,pp),brand:r.brand||'دلخواه',coef:+r.coef||0,unit:u,qty:+r.qty||1}; }
+			if ( r.kind === 'misc' ){ var p=+r.price||0,q=+r.qty||1; base={ok:true,sku:r.name||'—',brand:r.brand||'',coef:null,unit:p,qty:q,sec:null,size:Infinity}; }
+			else if ( r.kind === 'custom' ){ var pp=E.parseSku(r.model); if(!pp) return {ok:false,msg:'مدل نامشخص'}; var u=E.unitFor(pp.section,pp,+r.coef||0); if(u===null) return {ok:false,msg:'فرمول نامشخص'}; base={ok:true,sku:E.skuOf(pp.section,pp),brand:r.brand||'دلخواه',coef:+r.coef||0,unit:u,qty:+r.qty||1,sec:pp.section,size:pp.size}; }
 			else {
 				var p2=E.parseSku(r.model); if(!p2) return {ok:false,msg:'مدل نامشخص'};
 				var sb2=E.splitBrand(r.brand||defBrand.value);
@@ -322,7 +325,7 @@ function tk_render_proforma() {
 				if(coef2==null) return {ok:false,msg:'ضریب تعریف نشده؛ با ✎ ضریب بگذارید'};
 				var unit2=E.unitFor(p2.section,p2,coef2);
 				if(unit2===null) return {ok:false,msg:'فرمول نامشخص'};
-				base={ok:true,sku:E.skuOf(p2.section,p2),brand:sb2?sb2.b.name_fa:(r.brand||''),coef:coef2,unit:unit2,qty:+r.qty||1};
+				base={ok:true,sku:E.skuOf(p2.section,p2),brand:sb2?sb2.b.name_fa:(r.brand||''),coef:coef2,unit:unit2,qty:+r.qty||1,sec:p2.section,size:p2.size};
 			}
 			var gross = base.unit * base.qty;
 			var eff = ( r.disc != null && r.disc !== '' ) ? Math.min(100,Math.max(0,+r.disc)) : state.disc;
@@ -377,13 +380,20 @@ function tk_render_proforma() {
 			return {model:tokens.join(' '),brand:brandTok,qty:qty};
 		}
 		function sortRows(){
-			state.rows.sort(function(a,b){
-				var ca=computeRow(a), cb=computeRow(b);
-				var ua=ca.ok?ca.unit:Infinity, ub=cb.ok?cb.unit:Infinity;
-				if(ua!==ub) return ua-ub;
-				var sa=ca.ok?ca.sku:'', sb=cb.ok?cb.sku:'';
-				return sa<sb?-1:(sa>sb?1:0);
-			});
+            state.rows.sort(function(a,b){
+            var ca=computeRow(a), cb=computeRow(b);
+            var sa=ca.sec?E.secOf(ca.sec):null, sb=cb.sec?E.secOf(cb.sec):null;
+            var oa=E.catOrder(sa), ob=E.catOrder(sb);
+            if(oa!==ob) return oa-ob;
+            var ia=sa?sa.id:1e9, ib=sb?sb.id:1e9;
+            if(ia!==ib) return ia-ib;
+            var ka=(ca.coef!=null?+ca.coef:Infinity), kb=(cb.coef!=null?+cb.coef:Infinity);
+            if(ka!==kb) return ka-kb;
+            var za=(ca.size!=null?+ca.size:Infinity), zb=(cb.size!=null?+cb.size:Infinity);
+            if(za!==zb) return za-zb;
+            return String(ca.brand||'').localeCompare(String(cb.brand||''),'fa');
+            });
+        }
 		}
 		function addLines(t){ t.split('\n').forEach(function(l){ var p=splitLine(l.trim()); if(p&&p.model) state.rows.push({kind:'belt',model:p.model,brand:p.brand,qty:p.qty,coefOv:null,disc:null}); }); sortRows(); renderEditor(); }
 
@@ -412,9 +422,8 @@ function tk_render_proforma() {
 			syncCustom();
 			var p={logo:state.custom.logo,site:state.custom.site,seller:state.custom.seller,phone:state.custom.phone};
 			var enc='TKP1.'+btoa(unescape(encodeURIComponent(JSON.stringify(p)))).replace(/\+/g,'-').replace(/\//g,'_');
-			$('tk-c-preset-in').value=enc;
-			if(navigator.clipboard) navigator.clipboard.writeText(enc);
-			alert('پریست ساخته و کپی شد ✔ — آن را نگه دارید و دفعه بعد در «وارد کردن پریست» بگذارید.');
+			E.copyText(enc);
+            alert('پریست ساخته و در کلیپ‌بورد کپی شد ✔ — آن را نگه دارید و دفعه بعد در «وارد کردن پریست» بگذارید.');
 		});
 		$('tk-c-preset-in').addEventListener('input',function(){
 			var v=$('tk-c-preset-in').value.trim();
