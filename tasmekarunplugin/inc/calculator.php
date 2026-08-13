@@ -250,7 +250,7 @@ function tk_render_proforma() {
 	$set = get_option( 'tk_settings', array() );
 	$jp = tk_jalali_parts();
 $meta = wp_json_encode( array(
-'logo'  => get_option( 'tk_logo_url', '' ),
+'logo'  => ( is_array( $set ) && isset( $set['tk_logo_url'] ) ? $set['tk_logo_url'] : '' ),
 'phone' => is_array( $set ) && isset( $set['phone'] ) ? $set['phone'] : '',
 'site'  => 'tasmekarun.ir',
 'jy' => $jp['y'], 'jm' => $jp['m'], 'jd' => $jp['d'],

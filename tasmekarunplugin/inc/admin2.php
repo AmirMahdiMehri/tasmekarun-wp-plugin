@@ -269,7 +269,7 @@ function tk_page_settings() {
 	<form method="post"><?php wp_nonce_field( 'tk_act', 'tk_nonce' ); ?>
 	<table class="form-table">
 	<tr><th>شماره تلفن «برای خرید تماس بگیرید»</th><td><input type="text" name="phone" value="<?php echo esc_attr( $set['phone'] ); ?>" style="direction:ltr"></td></tr>
-	<tr><th>آدرس لوگو (URL اختیاری)</th><td><input type="text" name="tk_logo_url" value="<?php echo esc_attr( get_option( 'tk_logo_url', '' ) ); ?>" dir="ltr" style="width:450px"></td></tr>
+	<tr><th>آدرس لوگو (URL اختیاری)</th><td><input type="text" name="tk_logo_url" value="<?php echo esc_attr( isset( $set['tk_logo_url'] ) ? $set['tk_logo_url'] : '' ); ?>" dir="ltr" style="width:450px"></td></tr>
 	<tr><th>واحد پول</th><td><input type="text" name="currency" value="<?php echo esc_attr( $set['currency'] ); ?>"></td></tr>
 	<tr><th>قالب عنوان محصول</th><td><input type="text" name="tpl_title" value="<?php echo esc_attr( $set['tpl_title'] ); ?>" style="width:450px" dir="ltr"></td></tr>
 	<tr><th>قالب توضیح محصول</th><td><textarea name="tpl_desc" rows="3" style="width:450px" dir="ltr"><?php echo esc_textarea( $set['tpl_desc'] ); ?></textarea><p class="description">جای‌نماها: {sku} {brand} {section} {size}</p></td></tr>

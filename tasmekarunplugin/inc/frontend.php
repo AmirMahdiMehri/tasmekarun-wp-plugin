@@ -26,9 +26,15 @@ function tk_render_card( $atts ) {
 		<h3 style="margin:0 0 8px"><?php echo esc_html( strtoupper( str_replace( ' ', '', $a['sku'] ) ) . ' — ' . $b->name_fa ); ?></h3>
 		<div style="margin-bottom:8px"><strong>قیمت:</strong> <?php echo $price ? esc_html( TK_Engine::fmt( $price ) ) : '— (ضریب/فرمول تعریف نشده)'; ?></div>
 		<div style="margin-bottom:12px"><strong>وضعیت:</strong> <?php echo $stock ? '✅ موجود در انبار' : '⚠️ ناموجود — تأمین از همکاران'; ?></div>
-		<?php if ( $stock ) : ?>
-			<button class="tk-add" style="width:100%;padding:10px;cursor:pointer">افزودن به سبد خرید</button>
-		<?php else : ?>
+		<?php if ( $stock && $sec && function_exists( 'tk_woo_ensure_base_product' ) ) :
+$base_id = tk_woo_ensure_base_product( (int) $b->id, (int) $sec->id ); ?>
+<form method="post" action="?add-to-cart=<?php echo esc_attr( $base_id ); ?>" style="margin:0">
+<input type="hidden" name="tk_size" value="<?php echo esc_attr( $parsed['size'] ); ?>">
+<input type="hidden" name="tk_brand" value="<?php echo (int) $b->id; ?>">
+<input type="hidden" name="tk_section" value="<?php echo (int) $sec->id; ?>">
+<button type="submit" class="tk-add" style="width:100%;padding:10px;cursor:pointer">افزودن به سبد خرید</button>
+</form>
+<?php else : ?>
 			<a class="tk-call" style="display:block;text-align:center;padding:10px;background:#0e3a40;color:#fff;text-decoration:none" href="tel:<?php echo esc_attr( $phone ); ?>">برای خرید تماس بگیرید: <?php echo esc_html( $phone ); ?></a>
 		<?php endif; ?>
 	</div>
