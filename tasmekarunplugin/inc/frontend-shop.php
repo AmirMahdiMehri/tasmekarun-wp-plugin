@@ -46,8 +46,8 @@ function tk_force_shop_root( $qv ) {
 	return $qv;
 }
 
-/* fallback ضدگلوله: اگه جدول rewrite هاست کار نکرد،
-   آدرس /shop/... رو مستقیم تفسیر کن و ویوی خودمون رو برگردون. */
+/* ✅ fallback ضدگلوله: بدون اتکا به جدول rewrite،
+   هر آدرس /shop/... رو مستقیم تفسیر کن و ویوی ما رو برگردون. */
 add_filter( 'template_include', 'tk_shop_uri_fallback', 99 );
 function tk_shop_uri_fallback( $tpl ) {
 	if ( get_query_var( 'tk_shop' ) ) { return $tpl; }
