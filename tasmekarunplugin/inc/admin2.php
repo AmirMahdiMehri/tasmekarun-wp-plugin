@@ -248,11 +248,13 @@ function tk_page_sections() {
 
 /* ================= تنظیمات ================= */
 function tk_page_settings() {
+	tk_assets();
 	if ( $_SERVER['REQUEST_METHOD'] === 'POST' && tk_ok() && isset( $_POST['tk_save_settings'] ) ) {
 		update_option( 'tk_settings', array(
 			'phone'     => sanitize_text_field( $_POST['phone'] ),
 			'tk_logo_url' => sanitize_text_field( $_POST['tk_logo_url'] ),
 			'currency'  => sanitize_text_field( $_POST['currency'] ),
+'prices_toman' => isset( $_POST['prices_toman'] ) ? 1 : 0,
 			'tpl_title' => sanitize_text_field( $_POST['tpl_title'] ),
 			'tpl_desc'  => wp_kses_post( $_POST['tpl_desc'] ),
 		) );
@@ -271,6 +273,13 @@ function tk_page_settings() {
 	<tr><th>شماره تلفن «برای خرید تماس بگیرید»</th><td><input type="text" name="phone" value="<?php echo esc_attr( $set['phone'] ); ?>" style="direction:ltr"></td></tr>
 	<tr><th>آدرس لوگو (URL اختیاری)</th><td><input type="text" name="tk_logo_url" value="<?php echo esc_attr( isset( $set['tk_logo_url'] ) ? $set['tk_logo_url'] : '' ); ?>" dir="ltr" style="width:450px"></td></tr>
 	<tr><th>واحد پول</th><td><input type="text" name="currency" value="<?php echo esc_attr( $set['currency'] ); ?>"></td></tr>
+	<tr><th>قیمت روی کالاها</th><td>
+<label class="tk-sw"><input type="checkbox" name="prices_toman" value="1" <?php checked( isset( $set['prices_toman'] ) ? (int) $set['prices_toman'] : 1 ); ?>><span></span></label>
+<strong>تومان</strong> <small>(روشن = تومان | خاموش = ریال — فقط روی کارت/صفحهٔ کالاها؛ محاسبه‌گر/پیش‌فاکتور کلید خودشان را دارند)</small><br><br>
+<small>رنگ اصلی قالب (تشخیص خودکار برای کلیدها):</small>
+<span style="display:inline-block;width:22px;height:22px;border-radius:6px;background:<?php echo esc_attr( tk_theme_primary_color() ); ?>;vertical-align:middle"></span>
+<code dir="ltr"><?php echo esc_html( tk_theme_primary_color() ); ?></code>
+</td></tr>
 	<tr><th>قالب عنوان محصول</th><td><input type="text" name="tpl_title" value="<?php echo esc_attr( $set['tpl_title'] ); ?>" style="width:450px" dir="ltr"></td></tr>
 	<tr><th>قالب توضیح محصول</th><td><textarea name="tpl_desc" rows="3" style="width:450px" dir="ltr"><?php echo esc_textarea( $set['tpl_desc'] ); ?></textarea><p class="description">جای‌نماها: {sku} {brand} {section} {size}</p></td></tr>
 	</table>

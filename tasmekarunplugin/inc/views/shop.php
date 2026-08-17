@@ -89,7 +89,7 @@ if ( 'cats' === $type ) {
 		echo '<div class="tk-prod">';
 		echo '<div class="tk-prod-img">' . ( $img ? '<img src="' . esc_url( $img ) . '" alt="' . esc_attr( $sku ) . '">' : '<div style="border:1px dashed #bbb;border-radius:10px;height:200px;display:flex;align-items:center;justify-content:center;color:#999">تصویر سری ' . esc_html( $sec->slug ) . '</div>' ) . '</div>';
 		echo '<div class="tk-prod-info">';
-		echo '<div class="tk-price">' . ( null === $price ? 'برای استعلام قیمت تماس بگیرید' : esc_html( TK_Engine::fmt( $price ) ) ) . '</div>';
+		echo '<div class="tk-price">' . ( null === $price ? 'برای استعلام قیمت تماس بگیرید' : esc_html( tk_money_display( $price ) ) ) . '</div>';
 		if ( $ribs || 'RIBS_LEN_COEF' === $fkey ) {
 			echo '<form method="get" class="tk-jump"><label>تعداد شیار: <select name="ribs" onchange="this.form.submit()">';
 			foreach ( array( 3, 4, 5, 6, 7, 8, 9, 10, 12 ) as $rb ) { echo '<option value="' . $rb . '" ' . selected( $ribs, $rb, false ) . '>' . $rb . '</option>'; }

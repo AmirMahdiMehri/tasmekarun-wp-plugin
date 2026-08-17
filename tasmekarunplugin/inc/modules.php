@@ -8,3 +8,4 @@ require_once __DIR__ . '/cooperation.php';
 require_once __DIR__ . '/compare.php';
 require_once __DIR__ . '/ai-guide.php';
 require_once __DIR__ . '/blog.php';
+require_once __DIR__ . '/theme-bridge.php';
