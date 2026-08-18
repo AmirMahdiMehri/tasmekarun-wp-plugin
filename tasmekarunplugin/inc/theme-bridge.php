@@ -1,51 +1,70 @@
 <?php
 defined( 'ABSPATH' ) || exit;
-/* ---------- تشخیص رنگ اصلی قالب (اسکن تو در تو + اولویت primary) ---------- */
-function tk_theme_primary_color( &$found_key = null ) {
-	static $cache = null, $cache_key = null;
-	if ( null !== $cache ) { if ( null !== $found_key ) { $found_key = $cache_key; } return $cache; }
+
+/* ---------- ابزار: آیا مقدار، رنگ است؟ ---------- */
+function tk_is_color_val( $v ) {
+	$v = trim( (string) $v );
+	return (bool) preg_match( '/^#([0-9a-fA-F]{3,8})$/', $v ) || (bool) preg_match( '/^rgba?\(/i', $v );
+}
+/* ---------- خواندن رنگ از ساختار تو در توی قالب (لایهٔ idle) ---------- */
+function tk_theme_color_from( $v ) {
+	if ( is_string( $v ) && tk_is_color_val( $v ) ) { return trim( $v ); }
+	if ( is_array( $v ) ) {
+		if ( isset( $v['idle'] ) && is_string( $v['idle'] ) && tk_is_color_val( $v['idle'] ) ) { return trim( $v['idle'] ); }
+		foreach ( $v as $x ) { if ( is_string( $x ) && tk_is_color_val( $x ) ) { return trim( $x ); } }
+	}
+	return null;
+}
+function tk_theme_get_opts() {
 	$opts = get_option( 'xts-woodmart-options', array() );
-	if ( ! is_array( $opts ) ) { $opts = array(); }
-	$best = null; $best_key = '';
-	$walk = function ( $node, $path ) use ( &$walk, &$best, &$best_key ) {
-		foreach ( (array) $node as $k => $v ) {
-			$p = ( '' === $path ) ? (string) $k : $path . '.' . $k;
-			$color = null;
-			if ( is_string( $v ) ) {
-				$t = trim( $v );
-				if ( preg_match( '/^#([0-9a-fA-F]{3,8})$/', $t ) || preg_match( '/^rgba?\(/i', $t ) ) { $color = $t; }
-			} elseif ( is_array( $v ) && ( isset( $v['color'] ) || isset( $v['rgba'] ) ) ) {
-				$c = isset( $v['color'] ) ? $v['color'] : $v['rgba'];
-				if ( is_string( $c ) && '' !== trim( $c ) ) { $color = trim( $c ); }
-			}
-			if ( null !== $color ) {
-				$lp = strtolower( $p );
-				if ( false !== strpos( $lp, 'primary' ) && false === strpos( $lp, 'font' ) && false === strpos( $lp, 'typo' ) && false === strpos( $lp, 'text' ) && null === $best ) {
-					$best = $color; $best_key = $p;
-				}
-			}
-			if ( is_array( $v ) && ! isset( $v['color'] ) && ! isset( $v['rgba'] ) ) { $walk( $v, $p ); }
+	return is_array( $opts ) ? $opts : array();
+}
+/* ---------- رنگ اصلی قالب (کلید روشن) ---------- */
+function tk_theme_primary_color() {
+	static $cache = null;
+	if ( null !== $cache ) { return $cache; }
+	$opts = tk_theme_get_opts();
+	$best = null;
+	foreach ( array( 'primary-color', 'color-primary', 'primary_color', 'color_primary', 'primary' ) as $k ) {
+		if ( isset( $opts[ $k ] ) ) { $best = tk_theme_color_from( $opts[ $k ] ); if ( $best ) { break; } }
+	}
+	if ( ! $best ) {
+		foreach ( $opts as $k => $v ) {
+			if ( is_string( $k ) && false !== strpos( $k, 'primary' ) ) { $best = tk_theme_color_from( $v ); if ( $best ) { break; } }
 		}
-	};
-	$walk( $opts, '' );
-	if ( null === $best ) { $best = '#0E3A40'; $best_key = 'fallback'; }
-	$cache = $best; $cache_key = $best_key;
-	if ( null !== $found_key ) { $found_key = $cache_key; }
+	}
+	$cache = $best ? $best : '#0E3A40';
 	return $cache;
 }
-/* ---------- رنگ نهایی کلیدها: دستی ← خودکار ---------- */
-function tk_toggle_color() {
-	$set = get_option( 'tk_settings', array() );
-	if ( is_array( $set ) && ! empty( $set['tk_toggle_color'] ) ) { return trim( $set['tk_toggle_color'] ); }
-	return tk_theme_primary_color();
+/* ---------- رنگ ثانویهٔ قالب (کلید خاموش) ---------- */
+function tk_theme_secondary_color() {
+	static $cache = null;
+	if ( null !== $cache ) { return $cache; }
+	$opts = tk_theme_get_opts();
+	$best = null;
+	foreach ( array( 'secondary-color', 'color-secondary', 'secondary_color', 'color_secondary', 'secondary' ) as $k ) {
+		if ( isset( $opts[ $k ] ) ) { $best = tk_theme_color_from( $opts[ $k ] ); if ( $best ) { break; } }
+	}
+	if ( ! $best ) {
+		foreach ( $opts as $k => $v ) {
+			if ( is_string( $k ) && false !== strpos( $k, 'second' ) ) { $best = tk_theme_color_from( $v ); if ( $best ) { break; } }
+		}
+	}
+	$cache = $best ? $best : '#cfd8dc';
+	return $cache;
 }
+/* ---------- تزریق رنگ: روشن = اصلی | خاموش = ثانویه ---------- */
 add_action( 'admin_head', 'tk_admin_toggle_color' );
 function tk_admin_toggle_color() {
-	echo '<style>.tk-sw input:checked+span{background:' . esc_attr( tk_toggle_color() ) . ' !important}</style>';
+	$on  = esc_attr( tk_theme_primary_color() );
+	$off = esc_attr( tk_theme_secondary_color() );
+	echo '<style>.tk-sw span{background:' . $off . ' !important}.tk-sw input:checked+span{background:' . $on . ' !important}</style>';
 }
 add_action( 'wp_head', 'tk_front_toggle_color', 20 );
 function tk_front_toggle_color() {
-	echo '<style>.tk-unit input:checked + .tk-unit-track{background:' . esc_attr( tk_toggle_color() ) . ' !important}</style>';
+	$on  = esc_attr( tk_theme_primary_color() );
+	$off = esc_attr( tk_theme_secondary_color() );
+	echo '<style>.tk-unit-track{background:' . $off . ' !important}.tk-unit input:checked + .tk-unit-track{background:' . $on . ' !important}</style>';
 }
 /* ---------- واحد پول روی کالاها (پیش‌فرض: تومان) ---------- */
 function tk_prices_toman() {
